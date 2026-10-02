@@ -20,6 +20,15 @@
 
 Post-close discovery and settlement evidence will be appended after the enforced window elapses.
 
+## Transformation 1
+
+The public fixture diff was independently checked before settlement. Its only content is the canonical `Hello World!` greeting, so transformation `0` is retained as an honest FAILED/refund case. A separate positive case was launched with one criterion matching that public source exactly.
+
+- Criterion: `The terminal README contains the exact greeting Hello World!`
+- Launch transaction: `0x601cb25393f79136c076c5de3426a76928db9cb5dc04f30ab41c1efceeb88edf` (`FINALIZED`, `MAJORITY_AGREE`, successful participating-validator execution)
+- State readback: transformation `1`, status `OPEN`, pool `1000000000000000000` wei
+- Protocol close time: Unix `1790980298`
+
 ## Required coverage
 
 After deployment, record at minimum:
