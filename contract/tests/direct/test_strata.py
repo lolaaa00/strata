@@ -318,6 +318,20 @@ def test_withdraw_is_pull_based_and_replay_safe(direct_vm, direct_deploy, direct
     assert contract.withdraw() == "nothing_to_withdraw"
 
 
+def test_failed_sponsor_can_withdraw_once(direct_vm, direct_deploy, direct_alice, terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/strata.py")
+    tid = launch(contract, direct_vm, direct_alice, terms, value=5 * WEI)
+    set_block_time(direct_vm, "2026-10-06T00:00:01Z"); direct_vm.value = 0
+    mock_terminal(direct_vm, terms); contract.start_discovery(tid); mock_root_change(direct_vm, terms); contract.advance_discovery(tid, 4); contract.finalize_manifest(tid); contract.build_shards(tid)
+    mock_shard_llm(direct_vm, criteria={"0":"VIOLATED","1":"SATISFIED"})
+    contract.audit_shard(tid, 0); contract.build_junctions(tid); contract.finalize_transformation(tid)
+    direct_vm.sender = direct_alice
+    assert contract.withdraw() == f"withdrew_{5 * WEI}"
+    assert contract.get_balance(wallet(direct_alice)) == "0"
+    assert contract.withdraw() == "nothing_to_withdraw"
+
+
 def test_getters_return_empty_for_missing_records(direct_vm, direct_deploy):
     contract = direct_deploy("contract/contracts/strata.py")
     assert contract.get_change_record(999, 0) == ""

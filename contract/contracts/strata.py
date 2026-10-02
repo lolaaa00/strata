@@ -1121,7 +1121,7 @@ class Strata(gl.Contract):
         if amount <= 0:
             return "nothing_to_withdraw"
         self.balances[caller] = "0"
-        gl.transfer(Address(caller), u256(amount))
+        gl.get_contract_at(Address(caller)).emit_transfer(value=u256(amount))
         return f"withdrew_{amount}"
 
     @gl.public.view
