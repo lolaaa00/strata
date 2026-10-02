@@ -15,6 +15,7 @@
 - Second-sponsor transaction: `0xa6ec751ea6c749417beb25bd171e4d7406873488810ab1bae1550b81f293f335` (`FINALIZED`, `MAJORITY_AGREE`)
 - State readback: status `OPEN`, two sponsor wallets, total funded and pool both `2000000000000000000` wei
 - Protocol close time: Unix `1790979048`
+- Pre-close guard transaction: `0xeea8d5ae398f3a53ed750b098f288c6fef62674093efd1d99b4d045a98c4563f` finalized with the expected `transformation_still_open` execution error; immediate readback remained `OPEN` with the full `2 GEN` pool and unchanged lifecycle counters.
 
 Post-close discovery and settlement evidence will be appended after the enforced window elapses.
 

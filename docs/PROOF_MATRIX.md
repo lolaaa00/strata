@@ -6,7 +6,7 @@
 | Studionet 61999 only | network guard | deployed contract + finalized live transactions |
 | Baseline on target history | Direct Mode regression | live launch of `octocat/Hello-World` transformation `0` |
 | Terminal state descends from baseline | Direct Mode regression | pending |
-| Complete tree discovery is bounded | contract + tests | pending |
+| Complete tree discovery is bounded | contract + tests | live pre-close guard rejected early discovery without state movement |
 | Shard judgments are substantive | custom leader/validator code | pending |
 | Junction judgments inspect both sides | custom leader/validator code | pending |
 | Source outage moves no GEN | tests | pending |
