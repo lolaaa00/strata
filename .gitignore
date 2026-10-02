@@ -4,6 +4,7 @@ frontend/.next/
 frontend/tsconfig.tsbuildinfo
 .env
 .env.local
+frontend/.env.production.local
 .venv/
 __pycache__/
 .pytest_cache/

@@ -37,9 +37,9 @@ export default function Home() {
         <div className="metric-grid"><div className="metric"><strong>61999</strong><span>Studionet</span></div><div className="metric"><strong>2</strong><span>custom semantic consensus layers</span></div><div className="metric"><strong>0</strong><span>application backends</span></div></div>
       </div>
     </section>
-    {!CONTRACT_ADDRESS ? <div className="notice">This source package is intentionally pre-deployment. Set <span className="mono">NEXT_PUBLIC_STRATA_CONTRACT_ADDRESS</span> after deploying the reviewed contract.</div> : null}
+    {!CONTRACT_ADDRESS ? <div className="notice">This build is missing its STRATA contract address. Set <span className="mono">NEXT_PUBLIC_STRATA_CONTRACT_ADDRESS</span> to enable live reads and writes.</div> : null}
     <div className="section-title"><div><h2>Recent transformations</h2><p>On-chain state read directly from STRATA.</p></div></div>
-    {loading ? <div className="empty">Reading Studionet…</div> : error ? <div className="notice error">{error}</div> : !items.length ? <div className="empty">No configured transformations yet. Launch one after deployment.</div> : <div className="grid">{items.map((item) => <Link href={`/transform/${item.id}`} className="card" key={item.id}>
+    {loading ? <div className="empty">Reading Studionet…</div> : error ? <div className="notice error">{error}</div> : !items.length ? <div className="empty">No transformations have been launched yet.</div> : <div className="grid">{items.map((item) => <Link href={`/transform/${item.id}`} className="card" key={item.id}>
       <div className="spread"><span className="pill">#{item.id}</span><span className="pill">{STATUS_LABELS[item.status] ?? item.status}</span></div>
       <h3>{item.title}</h3><p className="muted">{item.repo} · {item.target_ref}</p>
       <div className="data-grid"><div className="data-box"><span>Pool</span>{formatGen(item.total_funded_wei)}</div><div className="data-box"><span>Changes</span>{item.change_count}</div><div className="data-box"><span>Shards</span>{item.shard_count}</div><div className="data-box"><span>Terminal</span>{shortHash(item.terminal_commit)}</div></div>
