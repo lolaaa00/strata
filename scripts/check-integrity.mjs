@@ -24,6 +24,11 @@ for (const pin of [
 ]) if (!requirements.split(/\r?\n/).includes(pin)) findings.push(`Missing exact requirement pin: ${pin}`);
 const runner = '# { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }';
 if (contract.split(/\r?\n/, 1)[0] !== runner) findings.push("Contract runner header changed");
+for (const [snippet, reason] of [
+  ['raw = gl.message_raw["datetime"]', "Studionet timestamp access changed"],
+  ["gl.get_contract_at(Address(caller)).emit_transfer(value=u256(amount))", "Studionet native withdrawal primitive changed"],
+]) if (!contract.includes(snippet)) findings.push(reason);
+if (contract.includes("gl.transfer(")) findings.push("Unsupported gl.transfer call found; Studionet requires get_contract_at(...).emit_transfer(...)");
 const publicMethods = [...contract.matchAll(/@gl\.public\.(?:view|write)(?:\.payable)?\s+def\s+(\w+)\s*\(/g)].map((match) => match[1]);
 const expectedMethods = [
   "launch_transformation", "add_funding", "start_discovery", "advance_discovery", "finalize_manifest", "build_shards",
