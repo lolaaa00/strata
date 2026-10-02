@@ -14,6 +14,7 @@
 - Launch transaction: `0xca174151c84010354b2be49d99c047b76884f536b1f505036619761201e08e17` (`FINALIZED`, `MAJORITY_AGREE`)
 - Second-sponsor transaction: `0xa6ec751ea6c749417beb25bd171e4d7406873488810ab1bae1550b81f293f335` (`FINALIZED`, `MAJORITY_AGREE`)
 - State readback: status `OPEN`, two sponsor wallets, total funded and pool both `2000000000000000000` wei
+- Per-sponsor readback: both sponsor-total keys return exactly `1000000000000000000` wei; the implementer withdrawal balance remains `0` before settlement.
 - Protocol close time: Unix `1790979048`
 - Pre-close guard transaction: `0xeea8d5ae398f3a53ed750b098f288c6fef62674093efd1d99b4d045a98c4563f` finalized with the expected `transformation_still_open` execution error; immediate readback remained `OPEN` with the full `2 GEN` pool and unchanged lifecycle counters.
 - Browser readback: a production-configured local build loaded transformation `0` directly from Studionet and rendered its `OPEN FOR FUNDING` status, `2.000 GEN` escrow, repository/ref, baseline, both acceptance criteria, and protocol controls.
@@ -29,6 +30,7 @@ The public fixture diff was independently checked before settlement. Its only co
 - State readback: transformation `1`, status `OPEN`, pool `1000000000000000000` wei
 - Protocol close time: Unix `1790980298`
 - Browser readback: the frontend refreshed its direct Studionet listing and displayed both transformation `1` with `1.000 GEN` and transformation `0` with `2.000 GEN`, ordered newest first.
+- Contract-wide readback after both launches: next transformation ID `2`; deployed schema remains 19 public methods and retrieved source still matches SHA-256 `fe8c839c11f18e51c7701a7e0bff09a202eac9665bd2bcd7468ce22931a7c2f0`.
 
 ## Required coverage
 
