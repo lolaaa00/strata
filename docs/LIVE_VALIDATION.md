@@ -28,6 +28,7 @@ The public fixture diff was independently checked before settlement. Its only co
 - Launch transaction: `0x601cb25393f79136c076c5de3426a76928db9cb5dc04f30ab41c1efceeb88edf` (`FINALIZED`, `MAJORITY_AGREE`, successful participating-validator execution)
 - State readback: transformation `1`, status `OPEN`, pool `1000000000000000000` wei
 - Protocol close time: Unix `1790980298`
+- Browser readback: the frontend refreshed its direct Studionet listing and displayed both transformation `1` with `1.000 GEN` and transformation `0` with `2.000 GEN`, ordered newest first.
 
 ## Required coverage
 
