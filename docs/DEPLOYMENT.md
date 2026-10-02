@@ -2,18 +2,18 @@
 
 ## Current status
 
-**PENDING REAL DEPLOYMENT**
+**CONTRACT DEPLOYED AND VERIFIED; FRONTEND PUBLICATION PENDING**
 
-This package was intentionally stopped before a wallet-authorized Studionet deployment. Do not replace these fields with guesses.
-
-- Candidate commit: PENDING
-- Canonical `strata.py` SHA-256: PENDING
+- Contract checkpoint commit: `9b9a761780cb9bc4a1b8d4696cdae745b70d4e29`
+- Release-tree commit: `9e88f3054b9bc8af3a5755f172de996eeb91f418`
+- Canonical `strata.py` SHA-256: `fe8c839c11f18e51c7701a7e0bff09a202eac9665bd2bcd7468ce22931a7c2f0`
 - Chain ID: `61999`
 - RPC: `https://studio.genlayer.com/api`
-- Contract address: PENDING
-- Deployment transaction: PENDING
-- Deployment finality: PENDING
-- Deployed-source retrieval/hash comparison: PENDING
+- Contract address: `0x7f98A41507b2dC347B37C6423017c6FBb7979A84`
+- Deployment transaction: `0xb68330aa196f62f491d71a153e445e0295460ccf35175aa2e4f514681592db74`
+- Deployment finality: `FINALIZED`, `MAJORITY_AGREE`, successful participating-validator execution
+- Deployed-source retrieval/hash comparison: exact after removing the CLI transport separator; normalized SHA-256 equals the canonical source SHA-256 above
+- Deployed schema: 19 public methods (7 view, 12 write)
 - Production frontend URL: PENDING
 
 ## Required release sequence

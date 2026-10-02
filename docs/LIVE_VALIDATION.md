@@ -1,6 +1,24 @@
 # Live validation
 
-No live lifecycle is claimed yet.
+## Release identity
+
+- Chain: GenLayer Studionet `61999`
+- Contract: `0x7f98A41507b2dC347B37C6423017c6FBb7979A84`
+- Contract checkpoint: `9b9a761780cb9bc4a1b8d4696cdae745b70d4e29`
+- Contract SHA-256: `fe8c839c11f18e51c7701a7e0bff09a202eac9665bd2bcd7468ce22931a7c2f0`
+- Deployment transaction: `0xb68330aa196f62f491d71a153e445e0295460ccf35175aa2e4f514681592db74` (`FINALIZED`, `MAJORITY_AGREE`)
+
+## Transformation 0
+
+- Fixture: `octocat/Hello-World`, ref `master`, baseline `553c2077f0edc3d5dc5d17262f6aa498e69d6f8e`
+- Launch transaction: `0xca174151c84010354b2be49d99c047b76884f536b1f505036619761201e08e17` (`FINALIZED`, `MAJORITY_AGREE`)
+- Second-sponsor transaction: `0xa6ec751ea6c749417beb25bd171e4d7406873488810ab1bae1550b81f293f335` (`FINALIZED`, `MAJORITY_AGREE`)
+- State readback: status `OPEN`, two sponsor wallets, total funded and pool both `2000000000000000000` wei
+- Protocol close time: Unix `1790979048`
+
+Post-close discovery and settlement evidence will be appended after the enforced window elapses.
+
+## Required coverage
 
 After deployment, record at minimum:
 

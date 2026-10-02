@@ -1,24 +1,19 @@
-# Pre-deployment status
+# Release status
 
-This archive was generated as a source-complete pre-deployment package. No wallet-authorized Studionet deployment was performed from this environment.
+The source-complete package has been hardened, tested, checkpointed, and deployed to GenLayer Studionet. The exact deployed contract is recorded in `docs/DEPLOYMENT.md`.
 
-## Verified while generating the archive
+## Verified release gates
 
-- Python source parses with `py_compile`.
-- repository network guard passes for Studionet `61999` configuration.
-- repository architecture guard passes with no application backend path.
-- source tree contains contract, frontend, CI, Direct Mode tests, mutation gate and release documentation.
+- repository network and architecture guards pass for Studionet `61999` with no application backend;
+- repository-local GenLayer CLI `0.39.1` and immutable dependency pins pass integrity checks;
+- GenVM lint and schema validation pass with 19 public methods;
+- 33 Direct Mode tests pass;
+- all 8 critical contract mutants are killed;
+- frontend lint, TypeScript, 25 tests, and production build pass;
+- deployed source retrieval matches canonical SHA-256 `fe8c839c11f18e51c7701a7e0bff09a202eac9665bd2bcd7468ce22931a7c2f0`;
+- live launch and independent second-sponsor funding finalized successfully with `2 GEN` escrowed.
 
-## Not claimed from this environment
+## Remaining release evidence
 
-The execution environment used to assemble the archive has no package-network access, so the following are intentionally **not** represented as locally verified:
-
-- installing npm/pip dependencies;
-- GenVM lint execution;
-- Direct Mode execution;
-- mutation execution;
-- frontend TypeScript/lint/test/build;
-- Studionet deployment;
-- live browser lifecycle.
-
-GitHub Actions is configured to perform the install/lint/test/build gates once the repository is pushed. The Windows release handoff gives the final local/deployment sequence.
+- complete transformation `0` after its protocol-enforced close time;
+- publish and verify the production frontend.
