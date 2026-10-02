@@ -13,4 +13,4 @@
 | COMPLETE releases implementer escrow | tests | pending |
 | FAILED/EXPIRED refunds sponsors | tests | pending |
 | Exact reviewed source is deployed | integrity guard + Git blob hash | deployed-source normalized SHA-256 `fe8c839c11f18e51c7701a7e0bff09a202eac9665bd2bcd7468ce22931a7c2f0` |
-| Browser reaches real contract | source integration | pending |
+| Browser reaches real contract | source integration + production build | rendered live transformation `0` with `2.000 GEN` escrow from Studionet |

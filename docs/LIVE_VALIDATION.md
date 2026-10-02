@@ -16,6 +16,7 @@
 - State readback: status `OPEN`, two sponsor wallets, total funded and pool both `2000000000000000000` wei
 - Protocol close time: Unix `1790979048`
 - Pre-close guard transaction: `0xeea8d5ae398f3a53ed750b098f288c6fef62674093efd1d99b4d045a98c4563f` finalized with the expected `transformation_still_open` execution error; immediate readback remained `OPEN` with the full `2 GEN` pool and unchanged lifecycle counters.
+- Browser readback: a production-configured local build loaded transformation `0` directly from Studionet and rendered its `OPEN FOR FUNDING` status, `2.000 GEN` escrow, repository/ref, baseline, both acceptance criteria, and protocol controls.
 
 Post-close discovery and settlement evidence will be appended after the enforced window elapses.
 
