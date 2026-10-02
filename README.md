@@ -116,7 +116,7 @@ Direct Mode is explicitly pinned to GenVM `v0.3.0-rc7` in the test fixture.
 
 ## Deployment status
 
-The reviewed contract is deployed on Studionet 61999 at `0x7f98A41507b2dC347B37C6423017c6FBb7979A84`. Its retrieved source matches the canonical contract SHA-256 recorded in `docs/DEPLOYMENT.md`.
+The reviewed contract is deployed on Studionet 61999 at `0x5Cac5E0E91316eEd4A3e89A3C6601AF3222E4469`. Its retrieved source matches the canonical contract SHA-256 recorded in `docs/DEPLOYMENT.md`.
 
 Frontend builds require `NEXT_PUBLIC_STRATA_CONTRACT_ADDRESS`; the production release uses the deployed address above.
 

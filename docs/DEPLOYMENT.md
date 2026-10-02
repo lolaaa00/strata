@@ -4,13 +4,12 @@
 
 **CONTRACT DEPLOYED AND VERIFIED; FRONTEND PUBLICATION PENDING**
 
-- Contract checkpoint commit: `9b9a761780cb9bc4a1b8d4696cdae745b70d4e29`
-- Release-tree commit: `9e88f3054b9bc8af3a5755f172de996eeb91f418`
-- Canonical `strata.py` SHA-256: `fe8c839c11f18e51c7701a7e0bff09a202eac9665bd2bcd7468ce22931a7c2f0`
+- Contract checkpoint commit: `be042a7e3d92d235c7554867e5443e967c29c5d0`
+- Canonical `strata.py` SHA-256: `394da88e53fb8da50854ce2a2ed02bd9c68e97f7822767a1ed6fc82ff1e1d0e6`
 - Chain ID: `61999`
 - RPC: `https://studio.genlayer.com/api`
-- Contract address: `0x7f98A41507b2dC347B37C6423017c6FBb7979A84`
-- Deployment transaction: `0xb68330aa196f62f491d71a153e445e0295460ccf35175aa2e4f514681592db74`
+- Contract address: `0x5Cac5E0E91316eEd4A3e89A3C6601AF3222E4469`
+- Deployment transaction: `0xf63b466e3a6d19dac7d3be5b496e94dfbf4940796d4e6935cb637eb25617d64f`
 - Deployment finality: `FINALIZED`, `MAJORITY_AGREE`, successful participating-validator execution
 - Deployed-source retrieval/hash comparison: exact after removing the CLI transport separator; normalized SHA-256 equals the canonical source SHA-256 above
 - Deployed schema: 19 public methods (7 view, 12 write)

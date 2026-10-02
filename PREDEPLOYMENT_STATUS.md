@@ -10,7 +10,7 @@ The source-complete package has been hardened, tested, checkpointed, and deploye
 - 33 Direct Mode tests pass;
 - all 8 critical contract mutants are killed;
 - frontend lint, TypeScript, 25 tests, and production build pass;
-- deployed source retrieval matches canonical SHA-256 `fe8c839c11f18e51c7701a7e0bff09a202eac9665bd2bcd7468ce22931a7c2f0`;
+- deployed source retrieval matches canonical SHA-256 `394da88e53fb8da50854ce2a2ed02bd9c68e97f7822767a1ed6fc82ff1e1d0e6`;
 - live launch and independent second-sponsor funding finalized successfully with `2 GEN` escrowed.
 
 ## Remaining release evidence
