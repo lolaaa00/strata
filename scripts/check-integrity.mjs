@@ -22,7 +22,7 @@ for (const pin of [
   "genlayer-test @ git+https://github.com/genlayerlabs/genlayer-testing-suite.git@343e3a358f9e235a93b49c60721ce7676585ff07",
   "genvm-linter @ git+https://github.com/genlayerlabs/genvm-linter.git@28450e665666300fc648dbe495110dfd0cb6a7b4",
 ]) if (!requirements.split(/\r?\n/).includes(pin)) findings.push(`Missing exact requirement pin: ${pin}`);
-const runner = '# { "Depends": "py-genlayer:1zr6nqk597d97kg0dyxg0shhrykx5v02zjgnyrajapy4wlqvfvwh" }';
+const runner = '# { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }';
 if (contract.split(/\r?\n/, 1)[0] !== runner) findings.push("Contract runner header changed");
 const publicMethods = [...contract.matchAll(/@gl\.public\.(?:view|write)(?:\.payable)?\s+def\s+(\w+)\s*\(/g)].map((match) => match[1]);
 const expectedMethods = [

@@ -48,7 +48,8 @@ No application backend, database, server decision service, cron, queue or custod
 | `genlayer-py` | `0.18.0` |
 | `genlayer-test` | `0.29.2` from immutable upstream commit |
 | `genvm-linter` | `0.11.1rc2` from immutable upstream commit |
-| GenVM Direct Mode | `v0.3.0-rc7` |
+| GenVM Direct Mode | `v0.3.0-rc7` with a three-line test adapter for the Studionet SDK surface |
+| Studionet runner | `py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6` |
 | `genlayer-js` | `1.1.8` |
 
 ## Protocol lifecycle
@@ -102,7 +103,7 @@ npm run check:architecture
 npm run check:cli
 npm run check:integrity
 
-genvm-lint setup --version v0.3.0-rc7
+genvm-lint setup --version v0.6.0-rc6
 genvm-lint check contract/contracts/strata.py
 python -m pytest contract/tests/direct -q
 npm --prefix frontend run lint

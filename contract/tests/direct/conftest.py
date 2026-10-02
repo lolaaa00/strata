@@ -9,11 +9,27 @@ GENVM_DIRECT_VERSION = "v0.3.0-rc7"
 
 
 @pytest.fixture
-def direct_deploy(direct_vm):
+def direct_deploy(direct_vm, tmp_path):
     def _deploy(contract_path, *args, **kwargs):
         contract_path = os.environ.get("STRATA_MUTANT_CONTRACT", contract_path)
+        source = Path(contract_path).read_text(encoding="utf-8")
+        source = source.replace(
+            'py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6',
+            'py-genlayer:1zr6nqk597d97kg0dyxg0shhrykx5v02zjgnyrajapy4wlqvfvwh',
+            1,
+        ).replace(
+            "from genlayer import *",
+            "import genlayer as gl\nfrom genlayer import Address, TreeMap, u256",
+            1,
+        ).replace(
+            "class Strata(gl.Contract):",
+            "class Strata(gl.contract.Contract):",
+            1,
+        )
+        adapter = tmp_path / "strata_direct_adapter.py"
+        adapter.write_text(source, encoding="utf-8", newline="\n")
         return deploy_contract(
-            Path(contract_path).resolve(),
+            adapter.resolve(),
             direct_vm,
             *args,
             sdk_version=GENVM_DIRECT_VERSION,

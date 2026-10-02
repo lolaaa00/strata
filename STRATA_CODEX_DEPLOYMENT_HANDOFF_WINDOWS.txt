@@ -41,7 +41,7 @@ npm run check:integrity
 
 4. RUN CONTRACT VERIFICATION
 
-genvm-lint setup --version v0.3.0-rc7
+genvm-lint setup --version v0.6.0-rc6
 genvm-lint check contract\contracts\strata.py
 python -m pytest contract\tests\direct -q
 

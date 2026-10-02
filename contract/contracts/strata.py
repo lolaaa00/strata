@@ -1,4 +1,4 @@
-# { "Depends": "py-genlayer:1zr6nqk597d97kg0dyxg0shhrykx5v02zjgnyrajapy4wlqvfvwh" }
+# { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
 """STRATA: hierarchical consensus for repository-scale software transformations.
 
 STRATA turns a large repository transformation into a deterministic manifest of
@@ -9,8 +9,7 @@ settlement, and pull-based balances. No application backend participates in
 judgment.
 """
 
-import genlayer as gl
-from genlayer import Address, TreeMap, u256
+from genlayer import *
 
 import base64
 import hashlib
@@ -496,7 +495,7 @@ Return ONLY JSON with exactly:
     return gl.nondet.exec_prompt(prompt, response_format="json")
 
 
-class Strata(gl.contract.Contract):
+class Strata(gl.Contract):
     transformations: TreeMap[u256, str]
     sponsor_totals: TreeMap[str, str]
     frontier_tasks: TreeMap[str, str]

@@ -32,7 +32,7 @@ jobs:
       - name: Python syntax
         run: python -m py_compile contract/contracts/strata.py contract/tests/direct/conftest.py contract/tests/direct/helpers.py contract/tests/direct/test_strata.py
       - name: Pin GenVM runtime
-        run: genvm-lint setup --version v0.3.0-rc7
+        run: genvm-lint setup --version v0.6.0-rc6
       - name: Contract lint
         run: genvm-lint check contract/contracts/strata.py
       - name: Direct Mode
