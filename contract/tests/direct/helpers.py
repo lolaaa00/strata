@@ -1,0 +1,161 @@
+import base64
+import json
+
+
+def set_block_time(vm, iso: str):
+    vm.warp(iso)
+    try:
+        import genlayer
+        raw = getattr(genlayer.message, "raw", None)
+        if isinstance(raw, dict):
+            raw["datetime"] = iso
+    except Exception:
+        pass
+
+
+def blob_payload(text: str):
+    return {
+        "encoding": "base64",
+        "content": base64.b64encode(text.encode("utf-8")).decode("ascii"),
+        "size": len(text.encode("utf-8")),
+    }
+
+
+def mock_compare(vm, repo, base, head, status="ahead", merge_base=None):
+    merge_base = base if merge_base is None else merge_base
+    vm.mock_web(
+        rf"api\.github\.com/repos/{repo}/compare/{base}\.\.\.{head}$",
+        {
+            "status": 200,
+            "body": json.dumps({
+                "status": status,
+                "merge_base_commit": {"sha": merge_base},
+            }),
+        },
+    )
+
+
+def mock_launch(vm, terms, status="ahead", merge_base=None):
+    repo = terms["repo"]
+    baseline = terms["baseline"]
+    terminal = terms["terminal"]
+    vm.mock_web(
+        rf"api\.github\.com/repos/{repo}/commits/{baseline}$",
+        {
+            "status": 200,
+            "body": json.dumps({
+                "sha": baseline,
+                "commit": {"tree": {"sha": terms["baseline_tree"]}},
+            }),
+        },
+    )
+    vm.mock_web(
+        rf"api\.github\.com/repos/{repo}/branches/main$",
+        {"status": 200, "body": json.dumps({"name": "main", "commit": {"sha": terminal}})},
+    )
+    mock_compare(vm, repo, baseline, terminal, status=status, merge_base=merge_base)
+
+
+def mock_terminal(vm, terms, status="ahead", merge_base=None):
+    vm.clear_mocks()
+    repo = terms["repo"]
+    baseline = terms["baseline"]
+    terminal = terms["terminal"]
+    vm.mock_web(
+        rf"api\.github\.com/repos/{repo}/branches/main$",
+        {"status": 200, "body": json.dumps({"name": "main", "commit": {"sha": terminal}})},
+    )
+    mock_compare(vm, repo, baseline, terminal, status=status, merge_base=merge_base)
+    vm.mock_web(
+        rf"api\.github\.com/repos/{repo}/commits/{terminal}$",
+        {
+            "status": 200,
+            "body": json.dumps({"sha": terminal, "commit": {"tree": {"sha": terms["terminal_tree"]}}}),
+        },
+    )
+
+
+def mock_root_change(vm, terms, old_text="legacy_auth(user)", new_text="capability_auth(user)"):
+    repo = terms["repo"]
+    old_sha = "3" * 40
+    new_sha = "4" * 40
+    vm.mock_web(
+        rf"api\.github\.com/repos/{repo}/git/trees/{terms['baseline_tree']}$",
+        {
+            "status": 200,
+            "body": json.dumps({
+                "sha": terms["baseline_tree"],
+                "truncated": False,
+                "tree": [{"path": "auth.py", "mode": "100644", "type": "blob", "sha": old_sha, "size": len(old_text)}],
+            }),
+        },
+    )
+    vm.mock_web(
+        rf"api\.github\.com/repos/{repo}/git/trees/{terms['terminal_tree']}$",
+        {
+            "status": 200,
+            "body": json.dumps({
+                "sha": terms["terminal_tree"],
+                "truncated": False,
+                "tree": [{"path": "auth.py", "mode": "100644", "type": "blob", "sha": new_sha, "size": len(new_text)}],
+            }),
+        },
+    )
+    vm.mock_web(
+        rf"api\.github\.com/repos/{repo}/git/blobs/{old_sha}$",
+        {"status": 200, "body": json.dumps(blob_payload(old_text))},
+    )
+    vm.mock_web(
+        rf"api\.github\.com/repos/{repo}/git/blobs/{new_sha}$",
+        {"status": 200, "body": json.dumps(blob_payload(new_text))},
+    )
+
+
+def mock_shard_llm(vm, criteria=None, interfaces=None, dependencies=None, rationale="The shard directly implements the migration."):
+    criteria = criteria or {"0": "SATISFIED", "1": "SATISFIED"}
+    vm._llm_mocks.clear()
+    vm._llm_mocks_hit.clear()
+    vm.mock_llm(
+        r"auditing one bounded immutable source shard",
+        json.dumps(json.dumps({
+            "criteria": criteria,
+            "interfaces_changed": interfaces or [],
+            "dependencies": dependencies or [],
+            "rationale": rationale,
+        })),
+    )
+
+
+def mock_junction_llm(vm, status="COMPATIBLE", criteria=None, rationale="Provider and consumer remain compatible."):
+    criteria = criteria or {"0": "NOT_RELEVANT", "1": "SATISFIED"}
+    vm._llm_mocks.clear()
+    vm._llm_mocks_hit.clear()
+    vm.mock_llm(
+        r"auditing one cross-shard compatibility junction",
+        json.dumps(json.dumps({"status": status, "criteria": criteria, "rationale": rationale})),
+    )
+
+
+def mock_two_large_changes(vm, terms):
+    repo = terms["repo"]
+    old_a, new_a, old_b, new_b = "5" * 40, "6" * 40, "7" * 40, "8" * 40
+    text_a_old = "legacy_provider\n" + ("a" * 12900)
+    text_a_new = "capability_provider\n" + ("b" * 12900)
+    text_b_old = "legacy_consumer\n" + ("c" * 12900)
+    text_b_new = "capability_consumer\n" + ("d" * 12900)
+    vm.mock_web(
+        rf"api\.github\.com/repos/{repo}/git/trees/{terms['baseline_tree']}$",
+        {"status": 200, "body": json.dumps({"sha": terms["baseline_tree"], "truncated": False, "tree": [
+            {"path":"provider.py","mode":"100644","type":"blob","sha":old_a,"size":len(text_a_old)},
+            {"path":"consumer.py","mode":"100644","type":"blob","sha":old_b,"size":len(text_b_old)},
+        ]})},
+    )
+    vm.mock_web(
+        rf"api\.github\.com/repos/{repo}/git/trees/{terms['terminal_tree']}$",
+        {"status": 200, "body": json.dumps({"sha": terms["terminal_tree"], "truncated": False, "tree": [
+            {"path":"provider.py","mode":"100644","type":"blob","sha":new_a,"size":len(text_a_new)},
+            {"path":"consumer.py","mode":"100644","type":"blob","sha":new_b,"size":len(text_b_new)},
+        ]})},
+    )
+    for sha, text in [(old_a,text_a_old),(new_a,text_a_new),(old_b,text_b_old),(new_b,text_b_new)]:
+        vm.mock_web(rf"api\.github\.com/repos/{repo}/git/blobs/{sha}$", {"status":200,"body":json.dumps(blob_payload(text))})

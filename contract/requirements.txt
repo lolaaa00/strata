@@ -1,0 +1,5 @@
+genlayer-py==0.18.0
+genlayer-test @ git+https://github.com/genlayerlabs/genlayer-testing-suite.git@343e3a358f9e235a93b49c60721ce7676585ff07
+genvm-linter @ git+https://github.com/genlayerlabs/genvm-linter.git@28450e665666300fc648dbe495110dfd0cb6a7b4
+pytest==9.0.2
+pyright==1.1.409

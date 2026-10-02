@@ -1,0 +1,142 @@
+STRATA — WINDOWS RELEASE / DEPLOYMENT HANDOFF
+
+Repository root expected on Windows:
+C:\Users\USER\Desktop\strata
+
+This handoff begins only after the source package has been reviewed.
+Do not redesign STRATA while performing release work.
+
+ABSOLUTE STACK
+- Studionet
+- chain ID 61999 / 0xF22F
+- RPC https://studio.genlayer.com/api
+- Explorer https://explorer-studio.genlayer.com
+- repository-local GenLayer CLI 0.39.1
+- GenVM Direct Mode v0.3.0-rc7
+- genlayer-py 0.18.0
+- genlayer-test 0.29.2
+- genvm-linter 0.11.1rc2 (immutable upstream commit)
+- genlayer-js 1.1.8
+
+DO NOT use a global GenLayer CLI.
+DO NOT switch to studio-dev / 61997.
+DO NOT upgrade to a GenVM v0.3 RC merely because it is newer.
+
+1. OPEN POWERSHELL IN THE REPOSITORY
+
+cd C:\Users\USER\Desktop\strata
+
+2. INSTALL EXACT PROJECT DEPENDENCIES
+
+npm install
+npm --prefix frontend install
+python -m pip install -r contract\requirements.txt
+
+3. RUN REPOSITORY GATES
+
+npm run check:network
+npm run check:architecture
+npm run check:cli
+npm run check:integrity
+
+4. RUN CONTRACT VERIFICATION
+
+genvm-lint setup --version v0.3.0-rc7
+genvm-lint check contract\contracts\strata.py
+python -m pytest contract\tests\direct -q
+
+If native-Windows Direct Mode is blocked by an upstream file-locking problem, do not silently change STRATA. Use the Ubuntu GitHub Actions run as the authoritative Direct Mode execution and record the Windows limitation honestly.
+
+5. RUN FRONTEND VERIFICATION
+
+npm --prefix frontend run lint
+npm run frontend:typecheck
+npm --prefix frontend run test
+npm --prefix frontend run build
+
+6. FREEZE THE RELEASE CANDIDATE
+
+- working tree clean
+- all expected CI green
+- record exact Git HEAD
+- record SHA-256 of contract\contracts\strata.py
+- verify scripts\check-integrity.mjs reports working-tree bytes equal the HEAD Git blob
+- do not modify the contract after this point without restarting the release process
+
+7. DEPLOY TO STUDIONET 61999
+
+Use ONLY the repository-local CLI:
+
+npx --no-install genlayer --help
+npx --no-install genlayer --version
+
+Verify the displayed CLI is 0.39.1 before using the deployment subcommand supported by that CLI version.
+
+Deploy exactly:
+contract\contracts\strata.py
+
+Do not invent or guess flags. Inspect the local 0.39.1 CLI help and use the Studionet / chain-61999 path supported by that exact version.
+
+8. VERIFY THE DEPLOYMENT
+
+Record:
+- contract address
+- deployment transaction hash
+- final transaction status
+- execution result
+- explorer URL
+- exact deployed source
+- SHA-256 of deployed source
+- reviewed Git commit SHA
+
+The deployed source must correspond to the frozen reviewed source. If source identity cannot be proven, do not continue to production frontend configuration.
+
+9. CONFIGURE FRONTEND
+
+Create frontend\.env.local containing only the real deployed address:
+
+NEXT_PUBLIC_STRATA_CONTRACT_ADDRESS=0x...
+
+Run again:
+npm --prefix frontend run build
+
+10. DEPLOY FRONTEND
+
+Deploy the existing Next.js frontend to the chosen static/Next-compatible host. Do not add a backend, database, API route, Server Action, custodial wallet, WalletConnect, Snap or centralized decision service.
+
+11. LIVE LIFECYCLE VALIDATION
+
+Use a small public GitHub test repository and execute a real lifecycle:
+- launch transformation with real GEN escrow
+- optional second sponsor
+- make / identify a real post-baseline repository transformation
+- wait until close
+- start terminal discovery
+- advance tree discovery until frontier empty
+- freeze manifest
+- build shards
+- audit all shards
+- build and audit any junctions
+- finalize
+- verify COMPLETE or FAILED accounting
+- withdraw the credited balance
+
+Also prove negative/failure paths:
+- wrong network
+- wallet signature rejection
+- source unavailable without GEN movement
+- terminal branch divergence / invalid ancestry if safely testable
+- inconclusive / expiry path on a separate small mission
+- transaction accepted is not displayed as final success
+- finalized execution error is visible
+- pending transaction survives page refresh
+
+12. UPDATE EVIDENCE FILES
+
+Replace PENDING fields in docs\DEPLOYMENT.md.
+Populate docs\LIVE_VALIDATION.md only with real transaction hashes and observed state.
+Do not claim a lifecycle that was not actually run.
+
+13. FINAL RELEASE RULE
+
+If contract source changes after deployment, the deployed address becomes obsolete for release purposes. Redeploy the new exact source and replace the evidence instead of pretending an older address proves the current contract.
