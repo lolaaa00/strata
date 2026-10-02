@@ -25,6 +25,10 @@ def direct_deploy(direct_vm, tmp_path):
             "class Strata(gl.Contract):",
             "class Strata(gl.contract.Contract):",
             1,
+        ).replace(
+            'gl.message_raw["datetime"]',
+            'gl.message.raw["datetime"]',
+            1,
         )
         adapter = tmp_path / "strata_direct_adapter.py"
         adapter.write_text(source, encoding="utf-8", newline="\n")

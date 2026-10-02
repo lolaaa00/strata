@@ -66,7 +66,7 @@ def _safe_json(value):
 
 
 def _now_unix() -> int:
-    raw = gl.message.raw["datetime"]
+    raw = gl.message_raw["datetime"]
     if raw.endswith("Z"):
         raw = raw[:-1] + "+00:00"
     parsed = datetime.fromisoformat(raw)
@@ -1145,12 +1145,12 @@ class Strata(gl.Contract):
 
     @gl.public.view
     def get_sponsor_total(self, transformation_id: u256, wallet: str) -> str:
-        key = f"{int(transformation_id)}:{wallet.lower()}"
+        key = f"{int(transformation_id)}:{_wallet(wallet)}"
         return self.sponsor_totals[key] if key in self.sponsor_totals else "0"
 
     @gl.public.view
     def get_balance(self, wallet: str) -> str:
-        wallet = wallet.lower()
+        wallet = _wallet(wallet)
         return self.balances[wallet] if wallet in self.balances else "0"
 
     @gl.public.view
