@@ -15,6 +15,7 @@
 - Launch transaction: `0x0dc2926aaf3720516abefe8bbc31ee5e5e2212fe23b6d7e263a83bd0d8b79516` (`FINALIZED`, `MAJORITY_AGREE`, both participating executions successful)
 - Escrow: `1 GEN`; status `OPEN`; close time Unix `1791066597`; terms digest `30d54e656794f53731ddf32a8b5adc7138508bb9582f346aeaffbf4ec32e7976`
 - Negative-path evidence: intermediate transaction `0xe6e3bf9f1a9f7c8f3909e533cd7d32fa4d978a6915bd06868c65362f79879d3d` finalized with `compare_identity_mismatch` and created no transformation or escrow state. This exposed and drove the corrected GitHub compare identity regression before the final deployment.
+- Pre-close invalid transition: `0x2ddeeb8cc39ad890a906ebf7449a3e1cfa5251d1d052d501938d0a2a53a53da2` reached `FINALIZED`, `MAJORITY_AGREE`, with `transformation_still_open`; readback remained `OPEN` with frontier `0` and the full `1 GEN` pool.
 
 Discovery and settlement are intentionally pending until the contract-enforced close time.
 
