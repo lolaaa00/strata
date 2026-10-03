@@ -108,6 +108,15 @@ def test_baseline_must_be_on_target_history(direct_vm, direct_deploy, direct_ali
         contract.launch_transformation(terms["repo"], "main", terms["baseline"], "x", "y", '["z"]', IMPLEMENTER, terms["close_at"])
 
 
+def test_launch_rejects_compare_with_wrong_terminal_identity(direct_vm, direct_deploy, direct_alice, terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/strata.py")
+    direct_vm.sender = direct_alice; direct_vm.value = 10 * WEI
+    mock_launch(direct_vm, terms, compare_head="9" * 40)
+    with direct_vm.expect_revert("compare_identity_mismatch"):
+        contract.launch_transformation(terms["repo"], "main", terms["baseline"], "x", "y", '["z"]', IMPLEMENTER, terms["close_at"])
+
+
 def test_discovery_cannot_start_early(direct_vm, direct_deploy, direct_alice, terms):
     set_block_time(direct_vm, "2026-10-01T10:00:00Z")
     contract = direct_deploy("contract/contracts/strata.py")

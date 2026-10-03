@@ -22,8 +22,9 @@ def blob_payload(text: str, sha: str):
     }
 
 
-def mock_compare(vm, repo, base, head, status="ahead", merge_base=None):
+def mock_compare(vm, repo, base, head, status="ahead", merge_base=None, compare_head=None):
     merge_base = base if merge_base is None else merge_base
+    compare_head = head if compare_head is None else compare_head
     vm.mock_web(
         rf"api\.github\.com/repos/{repo}/compare/{base}\.\.\.{head}$",
         {
@@ -32,13 +33,13 @@ def mock_compare(vm, repo, base, head, status="ahead", merge_base=None):
                 "status": status,
                 "merge_base_commit": {"sha": merge_base},
                 "base_commit": {"sha": base},
-                "head_commit": {"sha": head},
+                "commits": [] if status == "identical" else [{"sha": compare_head}],
             }),
         },
     )
 
 
-def mock_launch(vm, terms, status="ahead", merge_base=None):
+def mock_launch(vm, terms, status="ahead", merge_base=None, compare_head=None):
     repo = terms["repo"]
     baseline = terms["baseline"]
     terminal = terms["terminal"]
@@ -56,7 +57,7 @@ def mock_launch(vm, terms, status="ahead", merge_base=None):
         rf"api\.github\.com/repos/{repo}/branches/main$",
         {"status": 200, "body": json.dumps({"name": "main", "commit": {"sha": terminal}})},
     )
-    mock_compare(vm, repo, baseline, terminal, status=status, merge_base=merge_base)
+    mock_compare(vm, repo, baseline, terminal, status=status, merge_base=merge_base, compare_head=compare_head)
 
 
 def mock_terminal(vm, terms, status="ahead", merge_base=None):

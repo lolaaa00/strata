@@ -7,8 +7,8 @@ The hardened replacement is a release candidate. The previous fully verified rel
 - repository network and architecture guards pass for Studionet `61999` with no application backend;
 - repository-local GenLayer CLI `0.39.1` and immutable dependency pins pass integrity checks;
 - GenVM lint and schema validation pass with 19 public methods;
-- 38 Direct Mode tests pass;
-- all 12 critical contract mutants are killed;
+- 39 Direct Mode tests pass;
+- all 13 critical contract mutants are killed;
 - frontend lint, TypeScript, 25 tests, and production build pass;
 - malformed or identity-mismatched Git tree/blob responses fail closed;
 - duplicate paths and mode-only changes are covered by Direct Mode and mutation regressions;

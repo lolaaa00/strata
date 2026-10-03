@@ -25,6 +25,7 @@ MUTANTS = [
     ("allow_duplicate_tree_paths", 'if path in seen_paths:', 'if False and path in seen_paths:'),
     ("omit_mode_only_changes", 'if left and right and left["type"] == right["type"] and left["sha"] == right["sha"] and left["mode"] == right["mode"]:', 'if left and right and left["type"] == right["type"] and left["sha"] == right["sha"]:'),
     ("accept_wrong_blob_identity", 'if str(body.get("sha") or "").lower() != expected_sha:', 'if False and str(body.get("sha") or "").lower() != expected_sha:'),
+    ("accept_wrong_compare_identity", 'if not _compare_identity_ok(compare, baseline, tip, status):', 'if False and not _compare_identity_ok(compare, baseline, tip, status):'),
 ]
 
 def run(path: Path):

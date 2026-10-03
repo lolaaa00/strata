@@ -142,6 +142,19 @@ def _normalise_criteria(criteria_json: str):
     return cleaned
 
 
+def _compare_identity_ok(compare, baseline: str, tip: str, status: str) -> bool:
+    base_commit = compare.get("base_commit")
+    base_sha = str((base_commit.get("sha") if isinstance(base_commit, dict) else "") or "").lower()
+    commits = compare.get("commits")
+    if base_sha != baseline or not isinstance(commits, list):
+        return False
+    if status == "identical":
+        return tip == baseline and len(commits) == 0
+    if not commits or not isinstance(commits[-1], dict):
+        return False
+    return str(commits[-1].get("sha") or "").lower() == tip
+
+
 def _fetch_launch_identity(context_json: str) -> str:
     context = json.loads(context_json)
     repo = context["repo"]
@@ -176,11 +189,7 @@ def _fetch_launch_identity(context_json: str) -> str:
     status = str(compare.get("status") or "").lower()
     merge_base = compare.get("merge_base_commit")
     merge_base_sha = str((merge_base.get("sha") if isinstance(merge_base, dict) else "") or "").lower()
-    base_commit = compare.get("base_commit")
-    head_commit = compare.get("head_commit")
-    base_sha = str((base_commit.get("sha") if isinstance(base_commit, dict) else "") or "").lower()
-    head_sha = str((head_commit.get("sha") if isinstance(head_commit, dict) else "") or "").lower()
-    if base_sha != baseline or head_sha != tip:
+    if not _compare_identity_ok(compare, baseline, tip, status):
         return _canonical_json({"status": "INVALID", "reason": "compare_identity_mismatch"})
     if status not in {"ahead", "identical"} or merge_base_sha != baseline:
         return _canonical_json({"status": "INVALID", "reason": "baseline_not_on_target_history"})
@@ -220,11 +229,7 @@ def _fetch_terminal_snapshot(context_json: str) -> str:
     status = str(compare.get("status") or "").lower()
     merge_base = compare.get("merge_base_commit")
     merge_base_sha = str((merge_base.get("sha") if isinstance(merge_base, dict) else "") or "").lower()
-    base_commit = compare.get("base_commit")
-    head_commit = compare.get("head_commit")
-    base_sha = str((base_commit.get("sha") if isinstance(base_commit, dict) else "") or "").lower()
-    head_sha = str((head_commit.get("sha") if isinstance(head_commit, dict) else "") or "").lower()
-    if base_sha != baseline or head_sha != tip:
+    if not _compare_identity_ok(compare, baseline, tip, status):
         return _canonical_json({"status": "INVALID", "reason": "terminal_compare_identity_mismatch"})
     if status not in {"ahead", "identical"} or merge_base_sha != baseline:
         return _canonical_json({"status": "INVALID", "reason": "terminal_not_descended_from_baseline"})
