@@ -60,7 +60,7 @@ The public fixture diff was independently checked before settlement. Its only co
 
 Every final-contract transaction above reached `FINALIZED`, `MAJORITY_AGREE`, with successful execution. The release contract therefore has a complete live path from funded launch through immutable discovery, manifest, shard audit, the applicable zero-junction branch, COMPLETE settlement, native transfer, and replay-safe withdrawal.
 
-The production frontend is published at `https://ver-tex.vercel.app`. Deployment `dpl_7pPQ8ZAu9zTmLYeSmeYBhnGa3omj` reached Vercel `READY` after a clean production build and TypeScript pass. Public browser verification read transformation `0` directly from Studionet and rendered its terminal commit, complete manifest, shard `0` as `AUDITED`, criterion `0` as `SATISFIED`, the `COMPLETE` certificate root, and settlement digest.
+The production frontend is published at `https://strata-genlayer.vercel.app`. Deployment `dpl_7pPQ8ZAu9zTmLYeSmeYBhnGa3omj` reached Vercel `READY` after a clean production build and TypeScript pass. Public browser verification read transformation `0` directly from Studionet and rendered its terminal commit, complete manifest, shard `0` as `AUDITED`, criterion `0` as `SATISFIED`, the `COMPLETE` certificate root, and settlement digest. The temporary inherited alias `ver-tex.vercel.app` was removed after the STRATA-specific alias was verified.
 
 ## Coverage status
 

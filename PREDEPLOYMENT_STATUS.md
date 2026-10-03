@@ -1,6 +1,6 @@
 # Release status
 
-The source-complete package has been hardened, tested, checkpointed, deployed to GenLayer Studionet, exercised through a complete live lifecycle, and published at `https://ver-tex.vercel.app`. Exact evidence is recorded in `docs/DEPLOYMENT.md` and `docs/LIVE_VALIDATION.md`.
+The source-complete package has been hardened, tested, checkpointed, deployed to GenLayer Studionet, exercised through a complete live lifecycle, and published at `https://strata-genlayer.vercel.app`. Exact evidence is recorded in `docs/DEPLOYMENT.md` and `docs/LIVE_VALIDATION.md`.
 
 ## Verified release gates
 

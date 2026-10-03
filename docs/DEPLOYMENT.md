@@ -13,7 +13,7 @@
 - Deployment finality: `FINALIZED`, `MAJORITY_AGREE`, successful participating-validator execution
 - Deployed-source retrieval/hash comparison: exact after removing the CLI transport separator; normalized SHA-256 equals the canonical source SHA-256 above
 - Deployed schema: 19 public methods (7 view, 12 write)
-- Production frontend URL: `https://ver-tex.vercel.app`
+- Production frontend URL: `https://strata-genlayer.vercel.app`
 - Vercel production deployment: `dpl_7pPQ8ZAu9zTmLYeSmeYBhnGa3omj` (`READY`)
 - Public readback: transformation `0` rendered `COMPLETE`, shard `0` `AUDITED`, criterion `0` `SATISFIED`, and the exact certificate and settlement roots below
 - Final lifecycle: transformation `0` settled `COMPLETE`; `1 GEN` implementer credit withdrawn successfully; replay-safe withdrawal verified
