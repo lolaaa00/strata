@@ -1,19 +1,22 @@
-# Release status
+# Replacement release status
 
-The source-complete package has been hardened, tested, checkpointed, deployed to GenLayer Studionet, exercised through a complete live lifecycle, and published at `https://strata-genlayer.vercel.app`. Exact evidence is recorded in `docs/DEPLOYMENT.md` and `docs/LIVE_VALIDATION.md`.
+The hardened replacement is a release candidate. The previous fully verified release remains available at `https://strata-genlayer.vercel.app`, backed by contract `0x5Cac5E0E91316eEd4A3e89A3C6601AF3222E4469`. Because the contract source changed during the hostile audit, that address is historical and cannot be claimed as the deployment of this candidate.
 
 ## Verified release gates
 
 - repository network and architecture guards pass for Studionet `61999` with no application backend;
 - repository-local GenLayer CLI `0.39.1` and immutable dependency pins pass integrity checks;
 - GenVM lint and schema validation pass with 19 public methods;
-- 34 Direct Mode tests pass;
-- all 8 critical contract mutants are killed;
+- 38 Direct Mode tests pass;
+- all 12 critical contract mutants are killed;
 - frontend lint, TypeScript, 25 tests, and production build pass;
-- deployed source retrieval matches canonical SHA-256 `394da88e53fb8da50854ce2a2ed02bd9c68e97f7822767a1ed6fc82ff1e1d0e6`;
-- live launch, discovery, manifest, shard audit, COMPLETE settlement, native withdrawal, and replay-safe withdrawal finalized successfully;
-- production Vercel deployment `dpl_7pPQ8ZAu9zTmLYeSmeYBhnGa3omj` is `READY` and publicly reads the final Studionet contract.
+- malformed or identity-mismatched Git tree/blob responses fail closed;
+- duplicate paths and mode-only changes are covered by Direct Mode and mutation regressions;
+- a portable macOS CI job verifies guards and the frontend alongside Ubuntu and Windows.
 
 ## Remaining release evidence
 
-None. Known limitations are documented in the protocol and live-validation documents.
+- commit the exact candidate and run the full release gate from that clean commit;
+- deploy and retrieve-verify the exact new contract source on Studionet `61999`;
+- repoint, rebuild, and publish the frontend;
+- execute and record a complete funded lifecycle against the new address.

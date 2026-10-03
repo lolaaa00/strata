@@ -18,7 +18,10 @@
 
 - baseline must exist and be on target history before escrowed launch succeeds;
 - terminal tip must descend from baseline;
+- branch, comparison, commit, tree and blob response identities must match the immutable objects requested;
 - tree discovery is complete relative to the frozen baseline/terminal trees and never silently truncates;
+- duplicate or unsafe tree paths and unsupported Git object modes fail closed;
+- executable-bit and symlink-mode changes are committed even when blob content is unchanged;
 - source limits fail closed;
 - semantic outputs use fixed schemas and enum sets;
 - source strings are explicitly treated as data, not instructions;

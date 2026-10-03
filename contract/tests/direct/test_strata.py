@@ -162,6 +162,79 @@ def test_discovery_finds_modified_blob(direct_vm, direct_deploy, direct_alice, t
     assert record["change_type"] == "MODIFIED"
 
 
+def test_discovery_rejects_duplicate_tree_paths(direct_vm, direct_deploy, direct_alice, terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/strata.py")
+    tid = launch(contract, direct_vm, direct_alice, terms)
+    set_block_time(direct_vm, "2026-10-06T00:00:01Z"); direct_vm.value = 0
+    mock_terminal(direct_vm, terms); contract.start_discovery(tid)
+    duplicate = {"path":"same.py","mode":"100644","type":"blob","sha":"3" * 40,"size":1}
+    direct_vm.mock_web(
+        rf"api\.github\.com/repos/{terms['repo']}/git/trees/{terms['baseline_tree']}$",
+        {"status":200,"body":json.dumps({"sha":terms["baseline_tree"],"truncated":False,"tree":[duplicate, duplicate]})},
+    )
+    direct_vm.mock_web(
+        rf"api\.github\.com/repos/{terms['repo']}/git/trees/{terms['terminal_tree']}$",
+        {"status":200,"body":json.dumps({"sha":terms["terminal_tree"],"truncated":False,"tree":[]})},
+    )
+    with direct_vm.expect_revert("base_tree:duplicate_tree_path"):
+        contract.advance_discovery(tid, 1)
+
+
+def test_discovery_rejects_mismatched_tree_identity(direct_vm, direct_deploy, direct_alice, terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/strata.py")
+    tid = launch(contract, direct_vm, direct_alice, terms)
+    set_block_time(direct_vm, "2026-10-06T00:00:01Z"); direct_vm.value = 0
+    mock_terminal(direct_vm, terms); contract.start_discovery(tid)
+    direct_vm.mock_web(
+        rf"api\.github\.com/repos/{terms['repo']}/git/trees/{terms['baseline_tree']}$",
+        {"status":200,"body":json.dumps({"sha":"9" * 40,"truncated":False,"tree":[]})},
+    )
+    direct_vm.mock_web(
+        rf"api\.github\.com/repos/{terms['repo']}/git/trees/{terms['terminal_tree']}$",
+        {"status":200,"body":json.dumps({"sha":terms["terminal_tree"],"truncated":False,"tree":[]})},
+    )
+    with direct_vm.expect_revert("base_tree:tree_identity_mismatch"):
+        contract.advance_discovery(tid, 1)
+
+
+def test_mode_only_change_is_committed_to_manifest(direct_vm, direct_deploy, direct_alice, terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/strata.py")
+    tid = launch(contract, direct_vm, direct_alice, terms)
+    set_block_time(direct_vm, "2026-10-06T00:00:01Z"); direct_vm.value = 0
+    mock_terminal(direct_vm, terms); contract.start_discovery(tid)
+    shared = {"path":"run.sh","type":"blob","sha":"3" * 40,"size":7}
+    direct_vm.mock_web(
+        rf"api\.github\.com/repos/{terms['repo']}/git/trees/{terms['baseline_tree']}$",
+        {"status":200,"body":json.dumps({"sha":terms["baseline_tree"],"truncated":False,"tree":[{**shared,"mode":"100644"}]})},
+    )
+    direct_vm.mock_web(
+        rf"api\.github\.com/repos/{terms['repo']}/git/trees/{terms['terminal_tree']}$",
+        {"status":200,"body":json.dumps({"sha":terms["terminal_tree"],"truncated":False,"tree":[{**shared,"mode":"100755"}]})},
+    )
+    assert contract.advance_discovery(tid, 1) == "advanced_1"
+    record = json.loads(contract.get_change_record(tid, 0))
+    assert record["change_type"] == "MODIFIED"
+    assert record["old_mode"] == "100644"
+    assert record["new_mode"] == "100755"
+
+
+def test_shard_rejects_blob_identity_mismatch(direct_vm, direct_deploy, direct_alice, terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/strata.py")
+    tid = launch(contract, direct_vm, direct_alice, terms)
+    set_block_time(direct_vm, "2026-10-06T00:00:01Z"); direct_vm.value = 0
+    mock_terminal(direct_vm, terms); contract.start_discovery(tid)
+    mock_root_change(direct_vm, terms, new_blob_response_sha="9" * 40)
+    contract.advance_discovery(tid, 1); contract.finalize_manifest(tid); contract.build_shards(tid)
+    assert contract.audit_shard(tid, 0) == "shard_ambiguous"
+    shard = json.loads(contract.get_shard(tid, 0))
+    assert shard["status"] == "AMBIGUOUS"
+    assert shard["rationale"] == "new_blob:blob_identity_mismatch"
+
+
 def test_manifest_requires_empty_frontier(direct_vm, direct_deploy, direct_alice, terms):
     set_block_time(direct_vm, "2026-10-01T10:00:00Z")
     contract = direct_deploy("contract/contracts/strata.py")

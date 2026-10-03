@@ -162,6 +162,8 @@ def _fetch_launch_identity(context_json: str) -> str:
     branch, reason = _read_json_url(f"https://api.github.com/repos/{repo}/branches/{quote(ref, safe='')}")
     if branch is None:
         return _canonical_json({"status": "SOURCE_UNAVAILABLE", "reason": f"branch:{reason}"})
+    if not isinstance(branch, dict) or str(branch.get("name") or "") != ref:
+        return _canonical_json({"status": "INVALID", "reason": "target_ref_identity_mismatch"})
     tip = str(((branch.get("commit") if isinstance(branch, dict) else {}) or {}).get("sha") or "").lower()
     if not _sha_ok(tip):
         return _canonical_json({"status": "INVALID", "reason": "invalid_target_tip"})
@@ -174,6 +176,12 @@ def _fetch_launch_identity(context_json: str) -> str:
     status = str(compare.get("status") or "").lower()
     merge_base = compare.get("merge_base_commit")
     merge_base_sha = str((merge_base.get("sha") if isinstance(merge_base, dict) else "") or "").lower()
+    base_commit = compare.get("base_commit")
+    head_commit = compare.get("head_commit")
+    base_sha = str((base_commit.get("sha") if isinstance(base_commit, dict) else "") or "").lower()
+    head_sha = str((head_commit.get("sha") if isinstance(head_commit, dict) else "") or "").lower()
+    if base_sha != baseline or head_sha != tip:
+        return _canonical_json({"status": "INVALID", "reason": "compare_identity_mismatch"})
     if status not in {"ahead", "identical"} or merge_base_sha != baseline:
         return _canonical_json({"status": "INVALID", "reason": "baseline_not_on_target_history"})
 
@@ -198,6 +206,8 @@ def _fetch_terminal_snapshot(context_json: str) -> str:
     branch, reason = _read_json_url(f"https://api.github.com/repos/{repo}/branches/{quote(ref, safe='')}")
     if branch is None:
         return _canonical_json({"status": "SOURCE_UNAVAILABLE", "reason": f"branch:{reason}"})
+    if not isinstance(branch, dict) or str(branch.get("name") or "") != ref:
+        return _canonical_json({"status": "INVALID", "reason": "terminal_ref_identity_mismatch"})
     tip = str(((branch.get("commit") if isinstance(branch, dict) else {}) or {}).get("sha") or "").lower()
     if not _sha_ok(tip):
         return _canonical_json({"status": "INVALID", "reason": "invalid_terminal_tip"})
@@ -210,12 +220,20 @@ def _fetch_terminal_snapshot(context_json: str) -> str:
     status = str(compare.get("status") or "").lower()
     merge_base = compare.get("merge_base_commit")
     merge_base_sha = str((merge_base.get("sha") if isinstance(merge_base, dict) else "") or "").lower()
+    base_commit = compare.get("base_commit")
+    head_commit = compare.get("head_commit")
+    base_sha = str((base_commit.get("sha") if isinstance(base_commit, dict) else "") or "").lower()
+    head_sha = str((head_commit.get("sha") if isinstance(head_commit, dict) else "") or "").lower()
+    if base_sha != baseline or head_sha != tip:
+        return _canonical_json({"status": "INVALID", "reason": "terminal_compare_identity_mismatch"})
     if status not in {"ahead", "identical"} or merge_base_sha != baseline:
         return _canonical_json({"status": "INVALID", "reason": "terminal_not_descended_from_baseline"})
 
     commit, reason = _read_json_url(f"https://api.github.com/repos/{repo}/commits/{tip}")
     if commit is None:
         return _canonical_json({"status": "SOURCE_UNAVAILABLE", "reason": f"terminal_commit:{reason}"})
+    if not isinstance(commit, dict) or str(commit.get("sha") or "").lower() != tip:
+        return _canonical_json({"status": "INVALID", "reason": "terminal_commit_identity_mismatch"})
     tree = commit.get("commit", {}).get("tree") if isinstance(commit, dict) and isinstance(commit.get("commit"), dict) else None
     terminal_tree = str((tree.get("sha") if isinstance(tree, dict) else "") or "").lower()
     if not _sha_ok(terminal_tree):
@@ -241,10 +259,13 @@ def _tree_entries(repo: str, tree_sha: str):
         return None, reason
     if not isinstance(body, dict) or body.get("truncated") is True or not isinstance(body.get("tree"), list):
         return None, "malformed_or_truncated_tree"
+    if str(body.get("sha") or "").lower() != tree_sha:
+        return None, "tree_identity_mismatch"
     entries = body["tree"]
     if len(entries) > MAX_TREE_ENTRIES:
         return None, "tree_too_wide"
     normalized = []
+    seen_paths = set()
     for item in entries:
         if not isinstance(item, dict):
             return None, "malformed_tree_entry"
@@ -256,7 +277,13 @@ def _tree_entries(repo: str, tree_sha: str):
             size = int(item.get("size") or 0)
         except Exception:
             return None, "invalid_tree_size"
-        if not path or kind not in {"tree", "blob"} or not _sha_ok(sha) or size < 0:
+        if not path or path in {".", ".."} or "/" in path or "\x00" in path:
+            return None, "invalid_tree_path"
+        if path in seen_paths:
+            return None, "duplicate_tree_path"
+        seen_paths.add(path)
+        valid_mode = (kind == "tree" and mode == "040000") or (kind == "blob" and mode in {"100644", "100755", "120000"})
+        if kind not in {"tree", "blob"} or not valid_mode or not _sha_ok(sha) or size < 0:
             return None, "unsupported_tree_entry"
         normalized.append({"path": path, "type": kind, "sha": sha, "mode": mode, "size": size})
     normalized.sort(key=lambda item: item["path"])
@@ -274,11 +301,11 @@ def _fetch_tree_pair(context_json: str) -> str:
         return _canonical_json({"status": "INVALID", "reason": "invalid_terminal_tree"})
     base_entries, reason = _tree_entries(repo, base_tree)
     if base_entries is None:
-        deterministic = reason in {"malformed_or_truncated_tree", "tree_too_wide", "malformed_tree_entry", "invalid_tree_size", "unsupported_tree_entry"}
+        deterministic = reason in {"malformed_or_truncated_tree", "tree_identity_mismatch", "tree_too_wide", "malformed_tree_entry", "invalid_tree_size", "invalid_tree_path", "duplicate_tree_path", "unsupported_tree_entry"}
         return _canonical_json({"status": "INSUFFICIENT_EVIDENCE" if deterministic else "SOURCE_UNAVAILABLE", "reason": f"base_tree:{reason}"})
     terminal_entries, reason = _tree_entries(repo, terminal_tree)
     if terminal_entries is None:
-        deterministic = reason in {"malformed_or_truncated_tree", "tree_too_wide", "malformed_tree_entry", "invalid_tree_size", "unsupported_tree_entry"}
+        deterministic = reason in {"malformed_or_truncated_tree", "tree_identity_mismatch", "tree_too_wide", "malformed_tree_entry", "invalid_tree_size", "invalid_tree_path", "duplicate_tree_path", "unsupported_tree_entry"}
         return _canonical_json({"status": "INSUFFICIENT_EVIDENCE" if deterministic else "SOURCE_UNAVAILABLE", "reason": f"terminal_tree:{reason}"})
     result = {
         "status": "OK",
@@ -292,20 +319,30 @@ def _fetch_tree_pair(context_json: str) -> str:
     return _canonical_json(result)
 
 
-def _decode_blob(body):
+def _decode_blob(body, expected_sha: str, expected_size: int):
     if not isinstance(body, dict):
         return None, "malformed_blob"
+    if str(body.get("sha") or "").lower() != expected_sha:
+        return None, "blob_identity_mismatch"
+    try:
+        declared_size = int(body.get("size"))
+    except Exception:
+        return None, "invalid_blob_size"
+    if declared_size != expected_size:
+        return None, "blob_size_mismatch"
     encoding = str(body.get("encoding") or "")
     content = str(body.get("content") or "")
     try:
         if encoding == "base64":
-            raw = base64.b64decode(content.encode("ascii"), validate=False)
+            raw = base64.b64decode(content.encode("ascii"), validate=True)
         elif encoding in {"utf-8", "utf8"}:
             raw = content.encode("utf-8")
         else:
             return None, "unsupported_blob_encoding"
     except Exception:
         return None, "blob_decode_failed"
+    if len(raw) != expected_size:
+        return None, "blob_size_mismatch"
     if b"\x00" in raw:
         return None, "binary_blob"
     try:
@@ -323,7 +360,7 @@ def _fetch_blob(repo: str, sha: str, expected_size: int):
     body, reason = _read_json_url(f"https://api.github.com/repos/{repo}/git/blobs/{sha}")
     if body is None:
         return None, reason
-    return _decode_blob(body)
+    return _decode_blob(body, sha, expected_size)
 
 
 def _fetch_shard_source(context_json: str) -> str:
@@ -335,10 +372,12 @@ def _fetch_shard_source(context_json: str) -> str:
     for change in changes:
         old_text, reason = _fetch_blob(repo, change.get("old_sha", ""), int(change.get("old_size", 0)))
         if old_text is None:
-            return _canonical_json({"status": "INSUFFICIENT_EVIDENCE" if "budget" in reason or "binary" in reason or "utf8" in reason else "SOURCE_UNAVAILABLE", "reason": f"old_blob:{reason}"})
+            deterministic = reason in {"single_blob_budget_exceeded", "malformed_blob", "blob_identity_mismatch", "invalid_blob_size", "blob_size_mismatch", "unsupported_blob_encoding", "blob_decode_failed", "binary_blob", "non_utf8_blob"}
+            return _canonical_json({"status": "INSUFFICIENT_EVIDENCE" if deterministic else "SOURCE_UNAVAILABLE", "reason": f"old_blob:{reason}"})
         new_text, reason = _fetch_blob(repo, change.get("new_sha", ""), int(change.get("new_size", 0)))
         if new_text is None:
-            return _canonical_json({"status": "INSUFFICIENT_EVIDENCE" if "budget" in reason or "binary" in reason or "utf8" in reason else "SOURCE_UNAVAILABLE", "reason": f"new_blob:{reason}"})
+            deterministic = reason in {"single_blob_budget_exceeded", "malformed_blob", "blob_identity_mismatch", "invalid_blob_size", "blob_size_mismatch", "unsupported_blob_encoding", "blob_decode_failed", "binary_blob", "non_utf8_blob"}
+            return _canonical_json({"status": "INSUFFICIENT_EVIDENCE" if deterministic else "SOURCE_UNAVAILABLE", "reason": f"new_blob:{reason}"})
         total_chars += len(old_text) + len(new_text)
         if total_chars > MAX_SOURCE_TEXT_CHARS:
             return _canonical_json({"status": "INSUFFICIENT_EVIDENCE", "reason": "shard_source_budget_exceeded"})
@@ -347,6 +386,8 @@ def _fetch_shard_source(context_json: str) -> str:
             "change_type": change["change_type"],
             "old_sha": change.get("old_sha", ""),
             "new_sha": change.get("new_sha", ""),
+            "old_mode": change.get("old_mode", ""),
+            "new_mode": change.get("new_mode", ""),
             "old_source": old_text,
             "new_source": new_text,
         })
@@ -717,7 +758,7 @@ class Strata(gl.Contract):
             for name in sorted(set(base.keys()) | set(terminal.keys())):
                 left = base.get(name)
                 right = terminal.get(name)
-                if left and right and left["type"] == right["type"] and left["sha"] == right["sha"]:
+                if left and right and left["type"] == right["type"] and left["sha"] == right["sha"] and left["mode"] == right["mode"]:
                     continue
                 path = f"{prefix}/{name}" if prefix else name
                 left_type = left["type"] if left else ""
@@ -743,6 +784,8 @@ class Strata(gl.Contract):
                     "change_type": change_type,
                     "old_sha": left["sha"] if left else "",
                     "new_sha": right["sha"] if right else "",
+                    "old_mode": left["mode"] if left else "",
+                    "new_mode": right["mode"] if right else "",
                     "old_size": int(left.get("size", 0)) if left else 0,
                     "new_size": int(right.get("size", 0)) if right else 0,
                 }

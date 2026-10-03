@@ -15,9 +15,12 @@ export default function TransformationPage() {
   const refresh = useCallback(async () => {
     try {
       const next = await getTransformation(id); setItem(next); if (!next) return;
-      const c = await Promise.all(Array.from({ length: next.change_count }, (_, i) => getChangeRecord(id, i))); setChanges(c.filter(Boolean) as ChangeRecord[]);
-      const s = await Promise.all(Array.from({ length: next.shard_count }, (_, i) => getShard(id, i))); setShards(s.filter(Boolean) as Shard[]);
-      const j = await Promise.all(Array.from({ length: next.junction_count }, (_, i) => getJunction(id, i))); setJunctions(j.filter(Boolean) as Junction[]);
+      const [c, s, j] = await Promise.all([
+        Promise.all(Array.from({ length: next.change_count }, (_, i) => getChangeRecord(id, i))),
+        Promise.all(Array.from({ length: next.shard_count }, (_, i) => getShard(id, i))),
+        Promise.all(Array.from({ length: next.junction_count }, (_, i) => getJunction(id, i))),
+      ]);
+      setChanges(c.filter(Boolean) as ChangeRecord[]); setShards(s.filter(Boolean) as Shard[]); setJunctions(j.filter(Boolean) as Junction[]); setError(null);
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to read transformation."); }
   }, [id]);
   useEffect(() => { queueMicrotask(() => void refresh()); }, [refresh]);

@@ -13,8 +13,9 @@ def set_block_time(vm, iso: str):
         pass
 
 
-def blob_payload(text: str):
+def blob_payload(text: str, sha: str):
     return {
+        "sha": sha,
         "encoding": "base64",
         "content": base64.b64encode(text.encode("utf-8")).decode("ascii"),
         "size": len(text.encode("utf-8")),
@@ -30,6 +31,8 @@ def mock_compare(vm, repo, base, head, status="ahead", merge_base=None):
             "body": json.dumps({
                 "status": status,
                 "merge_base_commit": {"sha": merge_base},
+                "base_commit": {"sha": base},
+                "head_commit": {"sha": head},
             }),
         },
     )
@@ -75,7 +78,7 @@ def mock_terminal(vm, terms, status="ahead", merge_base=None):
     )
 
 
-def mock_root_change(vm, terms, old_text="legacy_auth(user)", new_text="capability_auth(user)"):
+def mock_root_change(vm, terms, old_text="legacy_auth(user)", new_text="capability_auth(user)", new_blob_response_sha=None):
     repo = terms["repo"]
     old_sha = "3" * 40
     new_sha = "4" * 40
@@ -103,11 +106,11 @@ def mock_root_change(vm, terms, old_text="legacy_auth(user)", new_text="capabili
     )
     vm.mock_web(
         rf"api\.github\.com/repos/{repo}/git/blobs/{old_sha}$",
-        {"status": 200, "body": json.dumps(blob_payload(old_text))},
+        {"status": 200, "body": json.dumps(blob_payload(old_text, old_sha))},
     )
     vm.mock_web(
         rf"api\.github\.com/repos/{repo}/git/blobs/{new_sha}$",
-        {"status": 200, "body": json.dumps(blob_payload(new_text))},
+        {"status": 200, "body": json.dumps(blob_payload(new_text, new_blob_response_sha or new_sha))},
     )
 
 
@@ -158,4 +161,4 @@ def mock_two_large_changes(vm, terms):
         ]})},
     )
     for sha, text in [(old_a,text_a_old),(new_a,text_a_new),(old_b,text_b_old),(new_b,text_b_new)]:
-        vm.mock_web(rf"api\.github\.com/repos/{repo}/git/blobs/{sha}$", {"status":200,"body":json.dumps(blob_payload(text))})
+        vm.mock_web(rf"api\.github\.com/repos/{repo}/git/blobs/{sha}$", {"status":200,"body":json.dumps(blob_payload(text, sha))})

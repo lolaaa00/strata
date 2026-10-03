@@ -69,3 +69,25 @@ jobs:
         run: npm --prefix frontend run test
       - name: Frontend build
         run: npm --prefix frontend run build
+
+  macos-portable:
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install repository dependencies
+        run: npm ci --ignore-scripts
+      - name: Install frontend dependencies
+        run: npm --prefix frontend ci --ignore-scripts
+      - name: Portable repository guards
+        run: npm run check:network && npm run check:architecture && npm run check:cli && npm run check:integrity
+      - name: Frontend lint
+        run: npm --prefix frontend run lint
+      - name: Frontend typecheck
+        run: npm run frontend:typecheck
+      - name: Frontend tests
+        run: npm --prefix frontend run test
+      - name: Frontend build
+        run: npm --prefix frontend run build

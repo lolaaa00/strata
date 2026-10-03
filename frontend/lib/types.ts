@@ -39,7 +39,7 @@ export type Transformation = {
   };
 };
 
-export type ChangeRecord = { index: number; path: string; change_type: string; old_sha: string; new_sha: string; old_size: number; new_size: number; record_digest: string };
+export type ChangeRecord = { index: number; path: string; change_type: string; old_sha: string; new_sha: string; old_mode?: string; new_mode?: string; old_size: number; new_size: number; record_digest: string };
 export type Shard = { index: number; change_indices: number[]; status: string; source_digest: string; certificate_digest: string; criteria: Record<string, CriterionResult>; interfaces_changed: string[]; dependencies: string[]; rationale: string };
 export type Junction = { index: number; interface_id: string; provider_shard: number; consumer_shard: number; status: string; criteria: Record<string, CriterionResult>; rationale: string; certificate_digest: string };
 

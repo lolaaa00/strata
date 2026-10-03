@@ -93,10 +93,12 @@ See `docs/CONSENSUS.md`.
 
 ## Local verification
 
-```powershell
-npm install
-npm --prefix frontend install
-python3.12 -m pip install -r contract/requirements.txt
+```sh
+npm ci
+npm --prefix frontend ci
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install -r contract/requirements.txt
 
 npm run check:network
 npm run check:architecture
@@ -105,7 +107,8 @@ npm run check:integrity
 
 genvm-lint setup --version v0.6.0-rc6
 genvm-lint check contract/contracts/strata.py
-python -m pytest contract/tests/direct -q
+python3 -m pytest contract/tests/direct -q
+python3 contract/tests/mutation/run.py
 npm --prefix frontend run lint
 npm run frontend:typecheck
 npm --prefix frontend run test
@@ -116,9 +119,9 @@ Direct Mode is explicitly pinned to GenVM `v0.3.0-rc7` in the test fixture.
 
 ## Deployment status
 
-The reviewed contract is deployed on Studionet 61999 at `0x5Cac5E0E91316eEd4A3e89A3C6601AF3222E4469`. Its retrieved source matches the canonical contract SHA-256 recorded in `docs/DEPLOYMENT.md`.
+The previous fully verified release remains available at `0x5Cac5E0E91316eEd4A3e89A3C6601AF3222E4469`. A hardened replacement candidate is being frozen and must receive a new Studionet address and live lifecycle proof before it becomes the current release. Exact status and historical evidence are recorded in `docs/DEPLOYMENT.md` and `docs/LIVE_VALIDATION.md`.
 
-Frontend builds require `NEXT_PUBLIC_STRATA_CONTRACT_ADDRESS`; the production release uses the deployed address above.
+Frontend builds require `NEXT_PUBLIC_STRATA_CONTRACT_ADDRESS`.
 
 Live frontend: `https://strata-genlayer.vercel.app`
 
@@ -131,5 +134,5 @@ contract/tests/mutation/            actual-source mutation gate
 frontend/                            Next.js app
 scripts/                             network / architecture / CLI / integrity gates
 docs/                                protocol, threat model, proof and deployment docs
-.github/workflows/ci.yml             Ubuntu + Windows verification
+.github/workflows/ci.yml             Ubuntu + Windows + macOS verification
 ```

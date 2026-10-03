@@ -2,7 +2,11 @@
 
 ## Current status
 
-**RELEASE DEPLOYED AND VERIFIED END TO END**
+**HARDENED REPLACEMENT CANDIDATE — DEPLOYMENT PENDING**
+
+The hostile audit materially changed `contract/contracts/strata.py`. A new checkpoint, source hash, address, deployment transaction and complete lifecycle proof must replace the values below before this candidate is called released.
+
+## Previous verified release (historical)
 
 - Contract checkpoint commit: `be042a7e3d92d235c7554867e5443e967c29c5d0`
 - Canonical `strata.py` SHA-256: `394da88e53fb8da50854ce2a2ed02bd9c68e97f7822767a1ed6fc82ff1e1d0e6`

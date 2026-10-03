@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getBalance, withdraw } from "@/lib/contract";
 import { useWallet } from "@/hooks/use-wallet";
 import { useTransactions } from "@/hooks/use-transactions";
@@ -8,13 +8,17 @@ import { formatGen } from "@/lib/utils";
 
 export default function EarningsPage() {
   const wallet = useWallet(); const tx = useTransactions(); const [balance, setBalance] = useState<bigint>(0n); const [error, setError] = useState<string | null>(null); const [busy, setBusy] = useState(false);
+  const refreshBalance = useCallback(async (address: string) => {
+    try { setBalance(await getBalance(address)); setError(null); }
+    catch (e) { setError(e instanceof Error ? e.message : "Unable to read balance."); }
+  }, []);
   useEffect(() => {
     const address = wallet.address;
     queueMicrotask(() => {
       if (!address) { setBalance(0n); return; }
-      void getBalance(address).then(setBalance).catch((e) => setError(e instanceof Error ? e.message : "Unable to read balance."));
+      void refreshBalance(address);
     });
-  }, [wallet.address]);
+  }, [wallet.address, tx.transactions, refreshBalance]);
   async function claim() {
     if (!wallet.provider || !wallet.address) return; if (!wallet.correctNetwork) { setError("Switch to Studionet first."); return; }
     setBusy(true); setError(null); try { const hash = await withdraw(wallet.provider, wallet.address); tx.track(String(hash), "Withdraw STRATA balance"); } catch (e) { setError(e instanceof Error ? e.message : "Withdrawal failed."); } finally { setBusy(false); }

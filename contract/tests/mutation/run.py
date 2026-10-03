@@ -21,6 +21,10 @@ MUTANTS = [
     ("allow_early_expiry", 'if _now_unix() <= int(item["close_at"]) + UNRESOLVED_GRACE_SECONDS:', 'if False and _now_unix() <= int(item["close_at"]) + UNRESOLVED_GRACE_SECONDS:'),
     ("complete_on_any_satisfied", 'if statuses and all(status == "SATISFIED" for status in statuses):', 'if statuses and any(status == "SATISFIED" for status in statuses):'),
     ("remove_terminal_guard", 'if item["status"] in TERMINAL_STATES:\n            raise gl.vm.UserError("transformation_already_terminal")', 'if False:\n            raise gl.vm.UserError("transformation_already_terminal")'),
+    ("accept_wrong_tree_identity", 'if str(body.get("sha") or "").lower() != tree_sha:', 'if False and str(body.get("sha") or "").lower() != tree_sha:'),
+    ("allow_duplicate_tree_paths", 'if path in seen_paths:', 'if False and path in seen_paths:'),
+    ("omit_mode_only_changes", 'if left and right and left["type"] == right["type"] and left["sha"] == right["sha"] and left["mode"] == right["mode"]:', 'if left and right and left["type"] == right["type"] and left["sha"] == right["sha"]:'),
+    ("accept_wrong_blob_identity", 'if str(body.get("sha") or "").lower() != expected_sha:', 'if False and str(body.get("sha") or "").lower() != expected_sha:'),
 ]
 
 def run(path: Path):
