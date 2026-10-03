@@ -14,5 +14,5 @@
 | FAILED/EXPIRED refunds sponsors | tests | FAILED sponsor credits proven live on superseded deployment; corrected withdrawal path proven against final source in Direct Mode |
 | Git object responses are identity-bound | Direct Mode + mutation regressions | pending replacement lifecycle |
 | Mode-only changes cannot disappear | Direct Mode + mutation regression | pending replacement lifecycle |
-| Exact reviewed source is deployed | integrity guard + Git blob hash | previous release matched `394da88e53fb8da50854ce2a2ed02bd9c68e97f7822767a1ed6fc82ff1e1d0e6`; replacement pending |
-| Browser reaches real contract | source integration + production build | previous release verified; replacement publication pending |
+| Exact reviewed source is deployed | integrity guard + Git blob hash | replacement source matches `55422468141b46f2a64e435da634187dde56e88e2c853a11057717b16e61588c` exactly |
+| Browser reaches real contract | source integration + production build | dedicated Vercel release is public and compiled with replacement address; lifecycle readback pending close |

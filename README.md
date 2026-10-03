@@ -119,7 +119,7 @@ Direct Mode is explicitly pinned to GenVM `v0.3.0-rc7` in the test fixture.
 
 ## Deployment status
 
-The previous fully verified release remains available at `0x5Cac5E0E91316eEd4A3e89A3C6601AF3222E4469`. A hardened replacement candidate is being frozen and must receive a new Studionet address and live lifecycle proof before it becomes the current release. Exact status and historical evidence are recorded in `docs/DEPLOYMENT.md` and `docs/LIVE_VALIDATION.md`.
+The hardened replacement is deployed on Studionet 61999 at `0x3f353ed233c471926E309a8D23517a8C80Cc1Bff`. Its retrieved source exactly matches commit `20c0d75a5a5bb346bb86d2076f11a160104e3468`; funded lifecycle verification is in progress until the protocol close window elapses. Exact status and historical evidence are recorded in `docs/DEPLOYMENT.md` and `docs/LIVE_VALIDATION.md`.
 
 Frontend builds require `NEXT_PUBLIC_STRATA_CONTRACT_ADDRESS`.
 

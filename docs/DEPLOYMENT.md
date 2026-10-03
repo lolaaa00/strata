@@ -2,9 +2,22 @@
 
 ## Current status
 
-**HARDENED REPLACEMENT CANDIDATE — DEPLOYMENT PENDING**
+**HARDENED REPLACEMENT DEPLOYED — LIVE LIFECYCLE IN PROGRESS**
 
-The hostile audit materially changed `contract/contracts/strata.py`. A new checkpoint, source hash, address, deployment transaction and complete lifecycle proof must replace the values below before this candidate is called released.
+The hostile audit materially changed `contract/contracts/strata.py`. The exact corrected candidate is deployed and source-verified. Its funded lifecycle must settle and withdraw before this candidate is called fully released.
+
+- Contract checkpoint commit: `20c0d75a5a5bb346bb86d2076f11a160104e3468`
+- Canonical `strata.py` SHA-256: `55422468141b46f2a64e435da634187dde56e88e2c853a11057717b16e61588c`
+- Chain ID: `61999`
+- RPC: `https://studio.genlayer.com/api`
+- Contract address: `0x3f353ed233c471926E309a8D23517a8C80Cc1Bff`
+- Deployment transaction: `0xc6296938f5c583e43c5b318572d975bcdc5678cf2ec46151caaaa0f6a2e2bd0a`
+- Deployment finality: `FINALIZED`, `MAJORITY_AGREE`, successful leader and participating-validator execution
+- Deployed-source retrieval/hash comparison: exact after removing the CLI display separator; normalized SHA-256 equals the canonical source SHA-256 above
+- Deployed schema: 19 public methods (7 view, 12 write)
+- Production frontend URL: `https://strata-genlayer.vercel.app`
+- Dedicated Vercel project: `strata-genlayer`; production deployment `dpl_GydSRctdSe929ZzbJJgedqMTrGNf` (`READY`)
+- Vercel environment: only `NEXT_PUBLIC_STRATA_CONTRACT_ADDRESS`, set to the address above
 
 ## Previous verified release (historical)
 
@@ -31,5 +44,5 @@ The hostile audit materially changed `contract/contracts/strata.py`. A new check
 5. Retrieve deployed source and prove it matches the reviewed source.
 6. Configure `NEXT_PUBLIC_STRATA_CONTRACT_ADDRESS`.
 7. Deploy the Next.js frontend. **Complete.**
-8. Execute a complete funded lifecycle and negative/source-failure cases. **Complete.**
-9. Record every transaction and resulting on-chain state in `LIVE_VALIDATION.md`. **Complete.**
+8. Execute a complete funded lifecycle and negative/source-failure cases. **In progress; close time `1791066597`.**
+9. Record every transaction and resulting on-chain state in `LIVE_VALIDATION.md`. **In progress.**

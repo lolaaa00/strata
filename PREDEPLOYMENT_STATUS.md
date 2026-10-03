@@ -1,6 +1,6 @@
 # Replacement release status
 
-The hardened replacement is a release candidate. The previous fully verified release remains available at `https://strata-genlayer.vercel.app`, backed by contract `0x5Cac5E0E91316eEd4A3e89A3C6601AF3222E4469`. Because the contract source changed during the hostile audit, that address is historical and cannot be claimed as the deployment of this candidate.
+The hardened replacement is deployed at `0x3f353ed233c471926E309a8D23517a8C80Cc1Bff` and published at `https://strata-genlayer.vercel.app`. Its funded live lifecycle is open until Unix `1791066597`; the release remains in progress until discovery, certification, settlement and withdrawal complete.
 
 ## Verified release gates
 
@@ -16,7 +16,5 @@ The hardened replacement is a release candidate. The previous fully verified rel
 
 ## Remaining release evidence
 
-- commit the exact candidate and run the full release gate from that clean commit;
-- deploy and retrieve-verify the exact new contract source on Studionet `61999`;
-- repoint, rebuild, and publish the frontend;
-- execute and record a complete funded lifecycle against the new address.
+- after close, execute and record discovery, manifest, shards, junction handling, COMPLETE settlement and implementer withdrawal;
+- update final evidence and confirm the repository is clean.

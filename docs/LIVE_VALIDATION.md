@@ -1,6 +1,24 @@
 # Live validation
 
-## Release identity
+## Hardened replacement lifecycle (in progress)
+
+- Contract: `0x3f353ed233c471926E309a8D23517a8C80Cc1Bff`
+- Contract commit: `20c0d75a5a5bb346bb86d2076f11a160104e3468`
+- Contract SHA-256: `55422468141b46f2a64e435da634187dde56e88e2c853a11057717b16e61588c`
+- Deployment transaction: `0xc6296938f5c583e43c5b318572d975bcdc5678cf2ec46151caaaa0f6a2e2bd0a` (`FINALIZED`, `MAJORITY_AGREE`, successful execution)
+- Source retrieval: exact byte match after normalizing the CLI display separator
+- Dedicated Vercel deployment: `dpl_GydSRctdSe929ZzbJJgedqMTrGNf` (`READY`), public alias `https://strata-genlayer.vercel.app`
+- Production environment: only `NEXT_PUBLIC_STRATA_CONTRACT_ADDRESS`, set to this contract
+- Transformation: `0`, repository `octocat/Hello-World`, ref `master`
+- Baseline: `553c2077f0edc3d5dc5d17262f6aa498e69d6f8e`, tree `fcf4a9bba6857422971d67147517eb5edfdbf48d`
+- Criterion: `The terminal README contains the words Hello World.`
+- Launch transaction: `0x0dc2926aaf3720516abefe8bbc31ee5e5e2212fe23b6d7e263a83bd0d8b79516` (`FINALIZED`, `MAJORITY_AGREE`, both participating executions successful)
+- Escrow: `1 GEN`; status `OPEN`; close time Unix `1791066597`; terms digest `30d54e656794f53731ddf32a8b5adc7138508bb9582f346aeaffbf4ec32e7976`
+- Negative-path evidence: intermediate transaction `0xe6e3bf9f1a9f7c8f3909e533cd7d32fa4d978a6915bd06868c65362f79879d3d` finalized with `compare_identity_mismatch` and created no transformation or escrow state. This exposed and drove the corrected GitHub compare identity regression before the final deployment.
+
+Discovery and settlement are intentionally pending until the contract-enforced close time.
+
+## Previous verified release identity (historical)
 
 - Chain: GenLayer Studionet `61999`
 - Contract: `0x5Cac5E0E91316eEd4A3e89A3C6601AF3222E4469`
