@@ -120,6 +120,8 @@ The reviewed contract is deployed on Studionet 61999 at `0x5Cac5E0E91316eEd4A3e8
 
 Frontend builds require `NEXT_PUBLIC_STRATA_CONTRACT_ADDRESS`; the production release uses the deployed address above.
 
+Live frontend: `https://ver-tex.vercel.app`
+
 ## Repository
 
 ```text

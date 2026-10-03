@@ -2,7 +2,7 @@
 
 ## Current status
 
-**CONTRACT AND COMPLETE LIVE LIFECYCLE VERIFIED; FRONTEND PUBLICATION PENDING**
+**RELEASE DEPLOYED AND VERIFIED END TO END**
 
 - Contract checkpoint commit: `be042a7e3d92d235c7554867e5443e967c29c5d0`
 - Canonical `strata.py` SHA-256: `394da88e53fb8da50854ce2a2ed02bd9c68e97f7822767a1ed6fc82ff1e1d0e6`
@@ -13,7 +13,9 @@
 - Deployment finality: `FINALIZED`, `MAJORITY_AGREE`, successful participating-validator execution
 - Deployed-source retrieval/hash comparison: exact after removing the CLI transport separator; normalized SHA-256 equals the canonical source SHA-256 above
 - Deployed schema: 19 public methods (7 view, 12 write)
-- Production frontend URL: PENDING
+- Production frontend URL: `https://ver-tex.vercel.app`
+- Vercel production deployment: `dpl_7pPQ8ZAu9zTmLYeSmeYBhnGa3omj` (`READY`)
+- Public readback: transformation `0` rendered `COMPLETE`, shard `0` `AUDITED`, criterion `0` `SATISFIED`, and the exact certificate and settlement roots below
 - Final lifecycle: transformation `0` settled `COMPLETE`; `1 GEN` implementer credit withdrawn successfully; replay-safe withdrawal verified
 
 ## Required release sequence
@@ -24,6 +26,6 @@
 4. Wait for finalized successful deployment execution.
 5. Retrieve deployed source and prove it matches the reviewed source.
 6. Configure `NEXT_PUBLIC_STRATA_CONTRACT_ADDRESS`.
-7. Deploy the Next.js frontend.
+7. Deploy the Next.js frontend. **Complete.**
 8. Execute a complete funded lifecycle and negative/source-failure cases. **Complete.**
 9. Record every transaction and resulting on-chain state in `LIVE_VALIDATION.md`. **Complete.**
