@@ -6,17 +6,17 @@
 
 The hostile audit materially changed `contract/contracts/strata.py`. The exact corrected candidate is deployed and source-verified. Its funded lifecycle must settle and withdraw before this candidate is called fully released.
 
-- Contract checkpoint commit: `20c0d75a5a5bb346bb86d2076f11a160104e3468`
-- Canonical `strata.py` SHA-256: `55422468141b46f2a64e435da634187dde56e88e2c853a11057717b16e61588c`
+- Contract checkpoint commit: `f93084f65f6713de47b1c4013fcdceba44b6d7f5`
+- Canonical `strata.py` SHA-256: `e9e04f341f274baf1f3e042fa6899bd8a03f622fce86dcefed4ba7820a7d8a5d`
 - Chain ID: `61999`
 - RPC: `https://studio.genlayer.com/api`
-- Contract address: `0x3f353ed233c471926E309a8D23517a8C80Cc1Bff`
-- Deployment transaction: `0xc6296938f5c583e43c5b318572d975bcdc5678cf2ec46151caaaa0f6a2e2bd0a`
+- Contract address: `0x3Ee9904EcdDa9bCfbc51fA2c6dE48E5C2004Aa00`
+- Deployment transaction: `0x82504ff1cb611255dc013accb1fb0f1c6046b31bab3ea26d1e684fdbf9dedd94`
 - Deployment finality: `FINALIZED`, `MAJORITY_AGREE`, successful leader and participating-validator execution
 - Deployed-source retrieval/hash comparison: exact after removing the CLI display separator; normalized SHA-256 equals the canonical source SHA-256 above
 - Deployed schema: 19 public methods (7 view, 12 write)
 - Production frontend URL: `https://strata-genlayer.vercel.app`
-- Dedicated Vercel project: `strata-genlayer`; production deployment `dpl_GydSRctdSe929ZzbJJgedqMTrGNf` (`READY`)
+- Dedicated Vercel project: `strata-genlayer`; production deployment `dpl_HsJrWqhZpb9kDNophrWhME66xcsz` (`READY`)
 - Vercel environment: only `NEXT_PUBLIC_STRATA_CONTRACT_ADDRESS`, set to the address above
 
 ## Previous verified release (historical)
@@ -44,5 +44,5 @@ The hostile audit materially changed `contract/contracts/strata.py`. The exact c
 5. Retrieve deployed source and prove it matches the reviewed source.
 6. Configure `NEXT_PUBLIC_STRATA_CONTRACT_ADDRESS`.
 7. Deploy the Next.js frontend. **Complete.**
-8. Execute a complete funded lifecycle and negative/source-failure cases. **In progress; close time `1791066597`.**
+8. Execute a complete funded lifecycle and negative/source-failure cases. **In progress; close time `1791105036`.**
 9. Record every transaction and resulting on-chain state in `LIVE_VALIDATION.md`. **In progress.**

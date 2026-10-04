@@ -1,23 +1,25 @@
 # Live validation
 
-## Hardened replacement lifecycle (in progress)
+## Post-audit final lifecycle (in progress)
 
-- Contract: `0x3f353ed233c471926E309a8D23517a8C80Cc1Bff`
-- Contract commit: `20c0d75a5a5bb346bb86d2076f11a160104e3468`
-- Contract SHA-256: `55422468141b46f2a64e435da634187dde56e88e2c853a11057717b16e61588c`
-- Deployment transaction: `0xc6296938f5c583e43c5b318572d975bcdc5678cf2ec46151caaaa0f6a2e2bd0a` (`FINALIZED`, `MAJORITY_AGREE`, successful execution)
+- Contract: `0x3Ee9904EcdDa9bCfbc51fA2c6dE48E5C2004Aa00`
+- Contract commit: `f93084f65f6713de47b1c4013fcdceba44b6d7f5`
+- Contract SHA-256: `e9e04f341f274baf1f3e042fa6899bd8a03f622fce86dcefed4ba7820a7d8a5d`
+- Deployment transaction: `0x82504ff1cb611255dc013accb1fb0f1c6046b31bab3ea26d1e684fdbf9dedd94` (`FINALIZED`, `MAJORITY_AGREE`, successful leader execution and three agreeing validators)
 - Source retrieval: exact byte match after normalizing the CLI display separator
-- Dedicated Vercel deployment: `dpl_GydSRctdSe929ZzbJJgedqMTrGNf` (`READY`), public alias `https://strata-genlayer.vercel.app`
+- Dedicated Vercel deployment: `dpl_HsJrWqhZpb9kDNophrWhME66xcsz` (`READY`), public alias `https://strata-genlayer.vercel.app`
 - Production environment: only `NEXT_PUBLIC_STRATA_CONTRACT_ADDRESS`, set to this contract
 - Transformation: `0`, repository `octocat/Hello-World`, ref `master`
 - Baseline: `553c2077f0edc3d5dc5d17262f6aa498e69d6f8e`, tree `fcf4a9bba6857422971d67147517eb5edfdbf48d`
 - Criterion: `The terminal README contains the words Hello World.`
-- Launch transaction: `0x0dc2926aaf3720516abefe8bbc31ee5e5e2212fe23b6d7e263a83bd0d8b79516` (`FINALIZED`, `MAJORITY_AGREE`, both participating executions successful)
-- Escrow: `1 GEN`; status `OPEN`; close time Unix `1791066597`; terms digest `30d54e656794f53731ddf32a8b5adc7138508bb9582f346aeaffbf4ec32e7976`
+- Launch transaction: `0xab6f7dec149da640e9e46cfd7d6ff1ac9c203055c8f212e1dbc425be8d3c62cf` (`FINALIZED`, `MAJORITY_AGREE`, successful execution, value credited)
+- Escrow: `1 GEN`; status `OPEN`; close time Unix `1791105036`; terms digest `83ebe91345b82ee5d1d5e4811c7b84543fcf041c536a94ca6cfb1b621df09182`
+- Production readback: the public JavaScript bundle embeds `0x3Ee9904EcdDa9bCfbc51fA2c6dE48E5C2004Aa00`; both the deployment URL and public alias return HTTP 200 with the configured security headers.
+- Audit finding: the preceding replacement correctly failed closed as `old_blob:blob_decode_failed` on GitHub's MIME-wrapped base64. The final source removes ASCII whitespace before strict base64 decoding; all positive Direct Mode fixtures now use the real GitHub newline shape.
 - Negative-path evidence: intermediate transaction `0xe6e3bf9f1a9f7c8f3909e533cd7d32fa4d978a6915bd06868c65362f79879d3d` finalized with `compare_identity_mismatch` and created no transformation or escrow state. This exposed and drove the corrected GitHub compare identity regression before the final deployment.
 - Pre-close invalid transition: `0x2ddeeb8cc39ad890a906ebf7449a3e1cfa5251d1d052d501938d0a2a53a53da2` reached `FINALIZED`, `MAJORITY_AGREE`, with `transformation_still_open`; readback remained `OPEN` with frontier `0` and the full `1 GEN` pool.
 
-Discovery and settlement are intentionally pending until the contract-enforced close time.
+Discovery and settlement are intentionally pending until the contract-enforced close time. The earlier `0x3f353ed…` deployment is obsolete because its live shard audit exposed the blob-decoding defect.
 
 ## Previous verified release identity (historical)
 

@@ -12,7 +12,7 @@
 | Source outage moves no GEN | tests | Direct Mode regression; no fabricated live outage |
 | COMPLETE releases implementer escrow | tests | final contract settled COMPLETE, credited `1 GEN`, and withdrew it natively |
 | FAILED/EXPIRED refunds sponsors | tests | FAILED sponsor credits proven live on superseded deployment; corrected withdrawal path proven against final source in Direct Mode |
-| Git object responses are identity-bound | Direct Mode + mutation regressions | pending replacement lifecycle |
-| Mode-only changes cannot disappear | Direct Mode + mutation regression | pending replacement lifecycle |
-| Exact reviewed source is deployed | integrity guard + Git blob hash | replacement source matches `55422468141b46f2a64e435da634187dde56e88e2c853a11057717b16e61588c` exactly |
-| Browser reaches real contract | source integration + production build | dedicated Vercel release is public and compiled with replacement address; lifecycle readback pending close |
+| Git object responses are identity-bound | Direct Mode + mutation regressions | final launch bound the exact baseline commit/tree; terminal identity remains pending close |
+| Mode-only changes cannot disappear | Direct Mode + mutation regression | final lifecycle pending close |
+| Exact reviewed source is deployed | integrity guard + Git blob hash | final source matches `e9e04f341f274baf1f3e042fa6899bd8a03f622fce86dcefed4ba7820a7d8a5d` after removing only CLI display newlines |
+| Browser reaches real contract | source integration + production build | deployment `dpl_HsJrWqhZpb9kDNophrWhME66xcsz` is public and its bundle embeds `0x3Ee9904EcdDa9bCfbc51fA2c6dE48E5C2004Aa00` |
