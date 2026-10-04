@@ -1,6 +1,6 @@
 # Live validation
 
-## Post-audit final lifecycle (in progress)
+## Post-audit final lifecycle (complete)
 
 - Contract: `0x3Ee9904EcdDa9bCfbc51fA2c6dE48E5C2004Aa00`
 - Contract commit: `f93084f65f6713de47b1c4013fcdceba44b6d7f5`
@@ -19,7 +19,19 @@
 - Negative-path evidence: intermediate transaction `0xe6e3bf9f1a9f7c8f3909e533cd7d32fa4d978a6915bd06868c65362f79879d3d` finalized with `compare_identity_mismatch` and created no transformation or escrow state. This exposed and drove the corrected GitHub compare identity regression before the final deployment.
 - Pre-close invalid transition: `0x2ddeeb8cc39ad890a906ebf7449a3e1cfa5251d1d052d501938d0a2a53a53da2` reached `FINALIZED`, `MAJORITY_AGREE`, with `transformation_still_open`; readback remained `OPEN` with frontier `0` and the full `1 GEN` pool.
 
-Discovery and settlement are intentionally pending until the contract-enforced close time. The earlier `0x3f353ed…` deployment is obsolete because its live shard audit exposed the blob-decoding defect.
+- Discovery initialization: `0x0eed7192ccd22ec3ced9b649d1884075e805f19f01cfe81b9a1a1e7492cd281f`; terminal commit `7fd1a60b01f91b314f59955a4e4d4e80d8edf11d`, tree `b4eecafa9be2f2006ce1b709d6857b07069b4608`, snapshot digest `ce878c7f881f10af455d5d6baf5f9ca6d29f783a3a64bcfb80a51de546d7116e`
+- Discovery batch: `0xe97cd355445a9f22089ffe567a7959b42d8e3ded92b688c974a96449c81ee276`; frontier `1/1`, one changed file
+- Changed record: `README`, old SHA `c57eff55ebc0c54973903af5f72bac72762cf4f4`, new SHA `980a0d5f19a64b4b30a87d4206aade58726b60e3`, digest `d4f990076a63b600da57f3faa7387f7cf7e9caa6fc1a28c84c5afe7330f488a6`
+- Manifest: `0xfc4438085a19125897dc6b68e2e91c11cc6e5bd80ecc02dad65228a63507a569`; root `bd86bebb5b7608fe12ad0d697378cf6e9e4e540018db411249cacb412d2aa2ca`
+- Shard construction: `0x797f88c8e051c24e39c3efb88d7ce9d31f6affbfa40c1a2ca7f3d62ed6ad2d55`; one bounded shard
+- Shard audit: `0x1fb3ec9bdd8a050092dc5da21e93e0b1d9077513f0eda07bb50576e32d71ef4a`; `AUDITED`, criterion `0` `SATISFIED`, source digest `46b2c3e2a430efa6721f0b810455e3f2b7d6fb108742410df9e596634acf3514`, certificate digest `0dc4b4df190c3121d20a4e29d6981ca0af71aa63b36264f1d5528c37f1fd0cbd`
+- Junction construction: `0x41dcd0ca022a46b9c861b395a0fcb2beebe1a22052254393fb89a09941428e96`; zero junctions because the only shard reported no cross-shard interface
+- COMPLETE settlement: `0x828c8fe0ade677972ce3bdb8c4572623f8921e0e39f3b17c5c95736768a6998f`; finalized at `1791105714`, pool zero, implementer allocation `1 GEN`, certificate root `e896acef035f4649f65c893b6692029a363b87971bc4bf5e3e0b4df867ab36a6`, settlement digest `dce423a5d638c926a6f748f222958433b40aa384f504418e851f4d7162dc37f3`
+- Implementer withdrawal: `0xb779468b1b13a56cd490560dc23de7f1349c5759493b404ef79e03bbb73fa54d`; internal balance changed from `1 GEN` to `0`
+- Replay-safe no-op withdrawal: `0x50059a9fb61ba2bed4ba29cfcb45cabefe3fb3ba3ab3131d7fb959a98bfb82ac`; finalized successfully and balance remained `0`
+- Public frontend verification: `https://strata-genlayer.vercel.app/transform/0` returned HTTP 200 with CSP, HSTS, frame, content-type and permissions-policy protections; the published bundle contains the exact final contract address.
+
+Every final lifecycle write above reached `FINALIZED`, `MAJORITY_AGREE`, with successful leader execution. The earlier `0x3f353ed…` deployment is obsolete because its live shard audit exposed the blob-decoding defect.
 
 ## Previous verified release identity (historical)
 

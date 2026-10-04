@@ -2,9 +2,9 @@
 
 ## Current status
 
-**HARDENED REPLACEMENT DEPLOYED — LIVE LIFECYCLE IN PROGRESS**
+**FINAL RELEASE DEPLOYED AND LIVE LIFECYCLE VERIFIED**
 
-The hostile audit materially changed `contract/contracts/strata.py`. The exact corrected candidate is deployed and source-verified. Its funded lifecycle must settle and withdraw before this candidate is called fully released.
+The hostile audit materially changed `contract/contracts/strata.py`. The exact corrected candidate is deployed, source-verified, settled `COMPLETE`, and its implementer allocation has been withdrawn.
 
 - Contract checkpoint commit: `f93084f65f6713de47b1c4013fcdceba44b6d7f5`
 - Canonical `strata.py` SHA-256: `e9e04f341f274baf1f3e042fa6899bd8a03f622fce86dcefed4ba7820a7d8a5d`
@@ -44,5 +44,5 @@ The hostile audit materially changed `contract/contracts/strata.py`. The exact c
 5. Retrieve deployed source and prove it matches the reviewed source.
 6. Configure `NEXT_PUBLIC_STRATA_CONTRACT_ADDRESS`.
 7. Deploy the Next.js frontend. **Complete.**
-8. Execute a complete funded lifecycle and negative/source-failure cases. **In progress; close time `1791105036`.**
-9. Record every transaction and resulting on-chain state in `LIVE_VALIDATION.md`. **In progress.**
+8. Execute a complete funded lifecycle and negative/source-failure cases. **Complete.**
+9. Record every transaction and resulting on-chain state in `LIVE_VALIDATION.md`. **Complete.**

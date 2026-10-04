@@ -1,6 +1,6 @@
-# Final release status
+# Final release status — complete
 
-The post-audit contract is deployed at `0x3Ee9904EcdDa9bCfbc51fA2c6dE48E5C2004Aa00` and published at `https://strata-genlayer.vercel.app`. Its funded live lifecycle is open until Unix `1791105036`; the release remains in progress until discovery, certification, settlement and withdrawal complete.
+The post-audit contract is deployed at `0x3Ee9904EcdDa9bCfbc51fA2c6dE48E5C2004Aa00` and published at `https://strata-genlayer.vercel.app`. Its funded live lifecycle completed through discovery, certification, `COMPLETE` settlement, native implementer withdrawal and replay-safe zero-balance verification.
 
 ## Verified release gates
 
@@ -16,7 +16,9 @@ The post-audit contract is deployed at `0x3Ee9904EcdDa9bCfbc51fA2c6dE48E5C2004Aa
 - duplicate paths and mode-only changes are covered by Direct Mode and mutation regressions;
 - a portable macOS CI job verifies guards and the frontend alongside Ubuntu and Windows.
 
-## Remaining release evidence
+## Final live evidence
 
-- after close `1791105036`, execute and record discovery, manifest, shards, junction handling, COMPLETE settlement and implementer withdrawal;
-- update final evidence and confirm the repository is clean.
+- transformation `0` froze terminal commit `7fd1a60b…`, discovered one changed `README`, certified its sole shard as `SATISFIED`, and required zero junctions;
+- settlement transaction `0x828c8fe0…6998f` produced `COMPLETE`, zeroed the pool and credited the implementer `1 GEN`;
+- withdrawal transaction `0xb779468b…fa54d` paid the credit; replay transaction `0x50059a9f…b82ac` left the internal balance at zero;
+- the public `/transform/0` route returns HTTP 200 with the expected security headers.

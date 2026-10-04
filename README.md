@@ -119,7 +119,7 @@ Direct Mode is explicitly pinned to GenVM `v0.3.0-rc7` in the test fixture.
 
 ## Deployment status
 
-The post-audit final contract is deployed on Studionet 61999 at `0x3Ee9904EcdDa9bCfbc51fA2c6dE48E5C2004Aa00`. Its retrieved source matches commit `f93084f65f6713de47b1c4013fcdceba44b6d7f5` with canonical SHA-256 `e9e04f341f274baf1f3e042fa6899bd8a03f622fce86dcefed4ba7820a7d8a5d`; funded lifecycle verification is in progress until the protocol close window elapses. Exact status and historical evidence are recorded in `docs/DEPLOYMENT.md` and `docs/LIVE_VALIDATION.md`.
+The post-audit final contract is deployed on Studionet 61999 at `0x3Ee9904EcdDa9bCfbc51fA2c6dE48E5C2004Aa00`. Its retrieved source matches commit `f93084f65f6713de47b1c4013fcdceba44b6d7f5` with canonical SHA-256 `e9e04f341f274baf1f3e042fa6899bd8a03f622fce86dcefed4ba7820a7d8a5d`. Transformation `0` completed discovery, manifest, shard consensus, the applicable zero-junction path, `COMPLETE` settlement, 1 GEN implementer withdrawal, and replay-safe zero-balance verification. Exact evidence is recorded in `docs/DEPLOYMENT.md` and `docs/LIVE_VALIDATION.md`.
 
 Frontend builds require `NEXT_PUBLIC_STRATA_CONTRACT_ADDRESS`.
 
