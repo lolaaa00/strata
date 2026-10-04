@@ -17,7 +17,9 @@ def blob_payload(text: str, sha: str):
     return {
         "sha": sha,
         "encoding": "base64",
-        "content": base64.b64encode(text.encode("utf-8")).decode("ascii"),
+        # Match GitHub's MIME-wrapped blob response, including its trailing
+        # newline, so every positive shard test covers the production shape.
+        "content": base64.b64encode(text.encode("utf-8")).decode("ascii") + "\n",
         "size": len(text.encode("utf-8")),
     }
 

@@ -339,7 +339,12 @@ def _decode_blob(body, expected_sha: str, expected_size: int):
     content = str(body.get("content") or "")
     try:
         if encoding == "base64":
-            raw = base64.b64decode(content.encode("ascii"), validate=True)
+            # GitHub's blob API returns MIME-wrapped base64 with embedded
+            # newlines. Remove ASCII whitespace before strict validation so
+            # canonical GitHub responses decode while malformed data still
+            # fails closed.
+            compact_content = re.sub(r"[\t\n\r\f\v ]+", "", content)
+            raw = base64.b64decode(compact_content.encode("ascii"), validate=True)
         elif encoding in {"utf-8", "utf8"}:
             raw = content.encode("utf-8")
         else:
