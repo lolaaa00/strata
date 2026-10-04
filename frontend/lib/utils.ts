@@ -17,3 +17,24 @@ export function unixFromLocal(value: string): number {
   if (!Number.isFinite(millis)) throw new Error("Enter a valid close time.");
   return Math.floor(millis / 1000);
 }
+
+export const MIN_CLOSE_LEAD_SECONDS = 65 * 60;
+export const MAX_CLOSE_LEAD_SECONDS = 120 * 24 * 60 * 60 - 5 * 60;
+
+export function validateCloseTime(value: string, nowMillis = Date.now()): number {
+  const closeAt = unixFromLocal(value);
+  const now = Math.floor(nowMillis / 1000);
+  if (closeAt < now + MIN_CLOSE_LEAD_SECONDS) {
+    throw new Error("Choose a close time at least 65 minutes from now.");
+  }
+  if (closeAt > now + MAX_CLOSE_LEAD_SECONDS) {
+    throw new Error("Choose a close time less than 120 days from now.");
+  }
+  return closeAt;
+}
+
+export function localDateTimeValue(millis: number): string {
+  const date = new Date(millis);
+  const part = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${part(date.getMonth() + 1)}-${part(date.getDate())}T${part(date.getHours())}:${part(date.getMinutes())}`;
+}

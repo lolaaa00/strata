@@ -16,8 +16,11 @@ function authoritativeLeaderExecution(tx: Record<string, unknown>): string {
   const consensus = tx.consensus_data ?? tx.consensusData;
   if (!consensus || typeof consensus !== "object") return "";
   const receipts = (consensus as Record<string, unknown>).leader_receipt ?? (consensus as Record<string, unknown>).leaderReceipt;
-  if (!Array.isArray(receipts) || receipts.length !== 1 || !receipts[0] || typeof receipts[0] !== "object") return "";
-  const receipt = receipts[0] as Record<string, unknown>;
+  if (!Array.isArray(receipts)) return "";
+  const objects = receipts.filter((item): item is Record<string, unknown> => !!item && typeof item === "object");
+  const leaders = objects.filter((item) => upper(item.mode) === "LEADER");
+  const receipt = leaders.length === 1 ? leaders[0] : objects.length === 1 ? objects[0] : null;
+  if (!receipt) return "";
   const named = directString(receipt, ["execution_result_name", "executionResultName", "execution_result", "executionResult"]);
   if (named) return named;
   const numeric = Number(receipt.execution_result ?? receipt.executionResult ?? NaN);
