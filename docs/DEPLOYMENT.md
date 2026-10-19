@@ -2,22 +2,25 @@
 
 ## Current status
 
-**PREVIOUS RELEASE VERIFIED; CONTESTED-CERTIFICATION MILESTONE PENDING NEW DEPLOYMENT**
+**CONTESTED-CERTIFICATION RELEASE VERIFIED ON STUDIONET 61999**
 
-The address below is the last verified historical release. It does not contain the new checkpoint, scoped-evidence, deterministic dependency-graph, or challenge workflow. Any milestone deployment must use a newly frozen source SHA and replaces this address as current.
-
-- Contract checkpoint commit: `f93084f65f6713de47b1c4013fcdceba44b6d7f5`
-- Canonical `strata.py` SHA-256: `e9e04f341f274baf1f3e042fa6899bd8a03f622fce86dcefed4ba7820a7d8a5d`
-- Chain ID: `61999`
-- RPC: `https://studio.genlayer.com/api`
-- Contract address: `0x3Ee9904EcdDa9bCfbc51fA2c6dE48E5C2004Aa00`
-- Deployment transaction: `0x82504ff1cb611255dc013accb1fb0f1c6046b31bab3ea26d1e684fdbf9dedd94`
-- Deployment finality: `FINALIZED`, `MAJORITY_AGREE`, successful leader and participating-validator execution
-- Deployed-source retrieval/hash comparison: exact after removing the CLI display separator; normalized SHA-256 equals the canonical source SHA-256 above
-- Deployed schema: 19 public methods (7 view, 12 write)
-- Production frontend URL: `https://strata-genlayer.vercel.app`
-- Dedicated Vercel project: `strata-genlayer`; production deployment `dpl_HsJrWqhZpb9kDNophrWhME66xcsz` (`READY`)
-- Vercel environment: only `NEXT_PUBLIC_STRATA_CONTRACT_ADDRESS`, set to the address above
+- Frozen contract source checkpoint: `f947e67ed7c7124280aae25fbc6aece48ede8d60`.
+- Canonical `strata.py` SHA-256: `5d305dfe94247b857b83aa995b28ceb9274b9af24765db12febcf8beb36f88bd`.
+- Chain ID: `61999` (`0xF22F`); RPC: `https://studio.genlayer.com/api`.
+- Contract address: `0xacD37F7db1beC0d071B80D74994038A9563daE96`.
+- Deployment transaction: `0xcf886363e9dcf56e57f1b5831f30fd21ff5b76bb3e9d6e415844068bd168b1fd`.
+- Deployment finality: `FINALIZED`, `MAJORITY_AGREE`, successful leader and validator execution.
+- Deployed-source retrieval: exact source byte match after removing the CLI display separator and two trailing display newlines; normalized SHA-256 equals the frozen source SHA-256.
+- Deployed schema: 31 public methods (10 view, 21 write).
+- Explorer: https://explorer-studio.genlayer.com/address/0xacD37F7db1beC0d071B80D74994038A9563daE96
+- Production frontend: https://strata-genlayer.vercel.app
+- Dedicated Vercel project: `strata-genlayer`; production deployment `dpl_B8Yvdnh4BBh9s3iamhe1WdDxE9C7` (`READY`). The established public alias points to this deployment.
+- Vercel production environment: `NEXT_PUBLIC_STRATA_CONTRACT_ADDRESS=0xacD37F7db1beC0d071B80D74994038A9563daE96`. The shipped browser JavaScript contains this address and no obsolete release address.
+- The public `/transform/1` route returned HTTP 200 with CSP and HSTS headers. Its browser bundle is configured for direct Studionet reads; the exact settled state was separately read from the contract with pinned `genlayer-js 1.1.8`.
+- GitHub Actions source checkpoint run: https://github.com/lolaaa00/strata/actions/runs/39234893894 (Ubuntu, macOS, Windows passed).
+- Live transformation `0`: ordinary provisional certificate settled `COMPLETE`, credited and paid `1 GEN`, replay returned `nothing_to_withdraw`.
+- Live transformation `1`: committed-evidence challenge reviewed and settled `COMPLETE`, credited and paid `1 GEN`, replay returned `nothing_to_withdraw`.
+- Final internal implementer balance: `0`. Exact transaction and state evidence is in `LIVE_VALIDATION.md`.
 
 ## Previous verified release (historical)
 
@@ -35,14 +38,6 @@ The address below is the last verified historical release. It does not contain t
 - Public readback: transformation `0` rendered `COMPLETE`, shard `0` `AUDITED`, criterion `0` `SATISFIED`, and the exact certificate and settlement roots below
 - Final lifecycle: transformation `0` settled `COMPLETE`; `1 GEN` implementer credit withdrawn successfully; replay-safe withdrawal verified
 
-## Required release sequence
+## Release sequence completed
 
-1. Freeze final source and record Git commit + canonical contract SHA.
-2. Run green CI on that exact commit.
-3. Deploy that exact contract using repository-local GenLayer CLI `0.39.1` on Studionet 61999.
-4. Wait for finalized successful deployment execution.
-5. Retrieve deployed source and prove it matches the reviewed source.
-6. Configure `NEXT_PUBLIC_STRATA_CONTRACT_ADDRESS`.
-7. Deploy the Next.js frontend. **Complete.**
-8. Execute a complete funded lifecycle and negative/source-failure cases. **Complete.**
-9. Record every transaction and resulting on-chain state in `LIVE_VALIDATION.md`. **Complete.**
+The frozen source passed CI, was deployed with repository-local CLI `0.39.1`, finalized successfully, and matched source readback. The production frontend was rebuilt with the exact new address and published. Both funded lifecycles, including the challenge branch, settled and withdrew. Historical deployments above remain evidence for earlier versions only.

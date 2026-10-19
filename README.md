@@ -133,11 +133,13 @@ Direct Mode is explicitly pinned to GenVM `v0.3.0-rc7` in the test fixture.
 
 ## Deployment status
 
-The post-audit final contract is deployed on Studionet 61999 at `0x3Ee9904EcdDa9bCfbc51fA2c6dE48E5C2004Aa00`. Its retrieved source matches commit `f93084f65f6713de47b1c4013fcdceba44b6d7f5` with canonical SHA-256 `e9e04f341f274baf1f3e042fa6899bd8a03f622fce86dcefed4ba7820a7d8a5d`. Transformation `0` completed discovery, manifest, shard consensus, the applicable zero-junction path, `COMPLETE` settlement, 1 GEN implementer withdrawal, and replay-safe zero-balance verification. Exact evidence is recorded in `docs/DEPLOYMENT.md` and `docs/LIVE_VALIDATION.md`.
+The contested-certification release is live on Studionet `61999` at [`0xacD37F7db1beC0d071B80D74994038A9563daE96`](https://explorer-studio.genlayer.com/address/0xacD37F7db1beC0d071B80D74994038A9563daE96). The deployed source exactly matches contract SHA-256 `5d305dfe94247b857b83aa995b28ceb9274b9af24765db12febcf8beb36f88bd` from source checkpoint `f947e67ed7c7124280aae25fbc6aece48ede8d60`. Its deployment transaction `0xcf886363e9dcf56e57f1b5831f30fd21ff5b76bb3e9d6e415844068bd168b1fd` reached `FINALIZED`, `MAJORITY_AGREE`, with successful execution.
 
-Frontend builds require `NEXT_PUBLIC_STRATA_CONTRACT_ADDRESS`.
+Two funded public-repository lifecycles completed on this exact deployment: one ordinary and one challenged certificate. Each reached `COMPLETE`, credited and paid `1 GEN` to the implementer, and returned `nothing_to_withdraw` on replay. The final internal balance is zero. The fixture has one changed `README`, one scoped evidence file, one audited shard, and no dependency edges or required junctions. Multi-shard and junction-adversarial behavior remains covered by Direct Mode tests rather than claimed as live fixture coverage. Exact transactions and state roots are in `docs/LIVE_VALIDATION.md`.
 
-Live frontend: `https://strata-genlayer.vercel.app`
+Frontend builds require `NEXT_PUBLIC_STRATA_CONTRACT_ADDRESS`. The production environment and shipped browser bundle use the exact address above.
+
+Live frontend: https://strata-genlayer.vercel.app
 
 ## Repository
 

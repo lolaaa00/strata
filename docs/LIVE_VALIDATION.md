@@ -1,8 +1,61 @@
-# Milestone live validation
+# Contested-certification release: live validation
 
-The transactions below prove the previous 19-method release and remain historical evidence. They do **not** prove the new contested-certification milestone. New funded success and challenge lifecycles must be appended only after the new 31-method contract is deployed and independently read back.
+All transaction hashes in this section are on contract [`0xacD37F7db1beC0d071B80D74994038A9563daE96`](https://explorer-studio.genlayer.com/address/0xacD37F7db1beC0d071B80D74994038A9563daE96), Studionet `61999`. Every successful write listed below reached `FINALIZED`, `MAJORITY_AGREE`, with successful leader execution. The pre-close negative transaction reached `FINALIZED` with the intended rollback. State was independently read back from the deployed contract after settlement.
 
-# Live validation
+- Frozen source checkpoint: `f947e67ed7c7124280aae25fbc6aece48ede8d60`; SHA-256 `5d305dfe94247b857b83aa995b28ceb9274b9af24765db12febcf8beb36f88bd`.
+- Deployment transaction: `0xcf886363e9dcf56e57f1b5831f30fd21ff5b76bb3e9d6e415844068bd168b1fd` (`FINALIZED`, `MAJORITY_AGREE`, successful execution); source and 31-method schema read back exactly.
+- Production deployment: `dpl_B8Yvdnh4BBh9s3iamhe1WdDxE9C7` (`READY`); https://strata-genlayer.vercel.app; public `/transform/1` HTTP 200 with CSP and HSTS; shipped bundle contains the exact contract address.
+- Fixture: public `octocat/Hello-World`, branch `master`, baseline commit `553c2077f0edc3d5dc5d17262f6aa498e69d6f8e` (tree `fcf4a9bba6857422971d67147517eb5edfdbf48d`), delivery commit `7fd1a60b01f91b314f59955a4e4d4e80d8edf11d` (tree `b4eecafa9be2f2006ce1b709d6857b07069b4608`), scope `README`, criterion `The terminal README contains the exact greeting Hello World!`.
+- Both transformations funded `1000000000000000000` wei (1 GEN), closed at Unix `1792409412`, and checkpointed the delivery before close.
+- The changed record is `README`, old Git blob `c57eff55ebc0c54973903af5f72bac72762cf4f4` (12 bytes), new blob `980a0d5f19a64b4b30a87d4206aade58726b60e3` (13 bytes), both mode `100644`. Record digest: `d4f990076a63b600da57f3faa7387f7cf7e9caa6fc1a28c84c5afe7330f488a6`.
+
+## Transformation 0: ordinary certificate
+
+| Stage | Finalized transaction |
+| --- | --- |
+| Funded launch | `0x67aeeaeaa649f54e89771c0cd7b33c4d59d95ba14f1cbd6815cd1233fa815ea4` |
+| Delivery checkpoint | `0x9012ca819bf5f08b38917cc39bae19e58a0ea1cff866c90357ec3bb4ca47d4dc` |
+| Discovery start | `0x696008e04f42d325df12f371a12802562bee7a0f178f78ff9c6fffac01a66c5a` |
+| Bounded discovery batch | `0xe5936d58ea709ee05f04ca5c3d9ee8dbaeeaea20660e487e5a801aa2ff2b2882` |
+| Manifest freeze | `0x2940dbd64e123fd62a19cbca45162acb65bee928645b150a325ba367f213d3c6` |
+| Scope start / batch / freeze | `0x3d884f49571427a8029242b3eedbc12ba3513a467819b2f9316a975a85a24068` / `0x1f466af5e0b80c443f96c3a925f8101cd8c9e3d762205c46f08318e2f3a3c7c3` / `0x54d72d78ffcc3197ce59628d0e5f05c789b00dcd06211c2a4d2a8c92c4bc5579` |
+| Evidence batch / freeze | `0xaf4f271b12d60920d6faf8b35172a89ee593160ee2fddbc52bc0eac626353fd4` / `0xfc7fc702c2a76607a2ca2853250a45726277dbd84895ed95a183785c7813cb5f` |
+| Shard build / audit | `0x845bb838aeb89d7bcecde61fb5e910caa1fca6d83b48ab92a62f5c743f58e157` / `0xc627202f7c3068b55ebec1c069934844b23dc469aca28398979ff505b0fb28fd` |
+| Junction build | `0x4f63e63cb50f6547c7aa1a410c5ecc1fdaab7b9317c21c0f11973b49edac5df2` |
+| Provisional COMPLETE | `0x3c6d76913b5d6fb4d525e1941c9edf64179a5e9d5275d828c4734ea83936f14a` |
+| Unchallenged COMPLETE settlement | `0xdd55f7a32b651a44999be8b22f9774566ca2c0e087fee3f6ed0980baa44f7307` |
+| Implementer withdrawal / replay | `0x5df5bc796f073ea048c2970ca081a48057b2402ef81ad4130e90cd4878d4294d` / `0xbea50666921f65610b874eac36652fc16a7978635f633c4199e9f8da43075155` |
+
+A pre-close `start_discovery` transaction, `0x398bd25074928fed29c020d31a81446540302e960d76e56db4019aca6c2a9d57`, finalized with rollback `transformation_still_open`, no value credited and no state movement. Subsequent valid discovery used the committed checkpoint.
+
+Final readback: `COMPLETE`; pool `0`; one changed record; one complete scoped evidence record; zero dependency edges; one `AUDITED` shard with criterion `0` `SATISFIED`; zero required junctions. Manifest root `bd86bebb5b7608fe12ad0d697378cf6e9e4e540018db411249cacb412d2aa2ca`; evidence root `fa5f218931d61b7d46580606f74fdbfe3c7d0e816c387cc6355c101ba9177f8f`; dependency graph root `4727d0a89be7999b4f4d81c4774594c9726b02c1bd8ebcb15a8109edca0d2f92`; shard certificate digest `7ec19042104775603c6540a584c4e6752a82eaedadc6da1c3997198007c31366`; global certificate root `3193277faf10c25131c3b6e9a5b0435202fb16fea6daace1921bd3dc8ca8dd20`; settlement digest `2d782b90b5d6693da83aa56518a9cc1cc74c2204ef22766afb65db89d2c683b3`. Settlement credited `1 GEN`; withdrawal returned `withdrew_1000000000000000000`; replay returned `nothing_to_withdraw`.
+
+## Transformation 1: challenged certificate
+
+| Stage | Finalized transaction |
+| --- | --- |
+| Funded launch | `0xc82e676f79bf8a768c7410caac8e969e73bdc9ea02f14e08f418f255f3cd9c5c` |
+| Delivery checkpoint | `0x30a95b849718e8ac68bbbaa7cf32907868330508f6e0e8eecb3f27db6c93e8a9` |
+| Discovery start / batch / manifest | `0x97b446bd747b19b972165b77e2ff4aa700d0121a85e15cf4ad0a7890b4435a31` / `0x17b09d2e6c6be5889576db4507584f11cd2be8cfa67259f74cf2e6686b7402c1` / `0xf9cd13fa08ac71c83956f7a71c01ec113371ea1cef50b0f2dbeccca2cd8ae6bc` |
+| Scope start / batch / freeze | `0xf5ee8dae3a776468a1cbd2d575a29217ae830914f959768ea536146f708d90db` / `0x950bc8987c6b71db2db1b6d497d74bd86b4210114c563e8504b305328452e4ca` / `0x35fa5597295ce87eaf779c2f0346f6f8b42a8790da3be6123f08dee2a8ac28a4` |
+| Evidence batch / freeze | `0xb56b003365e4c259b70333974c10d9bac2bdc6865825e01699e22fbe91fec585` / `0x33b5c2d1e5e5a783a75f88bce1ed30c68cd141f34c1ca59b48c7cc5f300c37d4` |
+| Shard build / audit | `0xece366f8dde460f5f57221dceb65d2eba035e005b209a16bbf2638c555324929` / `0x562a8669df89bc9ce31762621bda0013ed40c8f8f0de773c953510764729f9a8` |
+| Junction build | `0xacdaf0e794c0fed60ffdd6a4b81c207f7a17bbaab7f9939c84c73c3b8f054beb` |
+| Provisional COMPLETE | `0x27d7b893aab6ff7af2658d38130f68c27515791c87fa161455dddb94a6a023fd` |
+| Committed-evidence challenge | `0xc2e0fafb26dd91398ddf3b73a9180c009b1dfd5a738332d1b876ef21e0941ebc` |
+| Challenge review | `0x0785745062215aa44130a17bf463a1266358b63275dd1a570c30c7c1a732a0de` |
+| Reviewed COMPLETE settlement | `0x9d06fd5a65ed6d1d77d539eed7a60ba2fb69c72460d41e3d062815c36ced308b` |
+| Implementer withdrawal / replay | `0x88b8c76d2f79ac734d02f41de100c3c6133ae1b0ff227dcec59bbba590f15782` / `0x0e304943e65f724b4528b817e8c8be01ce58888340aed037ca9d49b35a9a3457` |
+
+The sponsor challenged criterion `0` using committed evidence path `README`. Challenge `0` was stored with digest `97205b16a8b584cbd0a2d8e0e5b248010178fd26dc7efff6d35882fc0ad4a853`, then marked `REVIEWED` with review digest `5bc10d6c0fbe75c9f756142bd30de6051aa4be08cbde00779aee4126128bd2ec`. The independent review returned `ready_to_settle` and retained criterion `0` as `SATISFIED`.
+
+Final readback: `COMPLETE`; pool `0`; one changed record; one complete scoped evidence record; zero dependency edges; one `AUDITED` shard; zero junctions; one reviewed challenge. Manifest root `699f4024cd5d6449f8611c6b5e64d11fe07cb77ec32c4b719e056776cd370c02`; evidence root `3106e17b582330b6ae1127a09462cd9441964ec92b8566ec13939ca71052c825`; dependency graph root `4727d0a89be7999b4f4d81c4774594c9726b02c1bd8ebcb15a8109edca0d2f92`; shard certificate digest `e2a51d2edee1166e6fcd9d8b79bf2da1fc9d3e72eec7f87f9b3a3d521dfe618c`; global certificate root `0feb70d36eeb050fd15ccd02cba0e0265bae0f4c8b39ac30fb194f7a9c6434a1`; reassessment digest `16e19ed265f4c2320dfe0baf94eff233105994db4b631a9e5366ac074ee32842`; settlement digest `3d276fd2519b9ff055e10ead97641670654f4faf85a539e8a5700ee18dff259d`. Settlement credited `1 GEN`; withdrawal returned `withdrew_1000000000000000000`; replay returned `nothing_to_withdraw`. Final implementer internal balance across both lifecycles was independently read as `0`.
+
+## Coverage limits
+
+This public fixture exercises the complete bounded single-shard lifecycle and the committed-evidence challenge. It has no source dependency edges or cross-shard junctions, so it cannot prove a live junction audit. Direct Mode validator-adversarial and mutation tests cover cross-shard construction, disagreement, source outage, retry, expiry, conservation, and other failure paths. The live pre-close guard above proves a rejected invalid transition; no artificial outage or failed semantic criterion is claimed on this final deployment.
+
+## Historical 19-method release evidence
 
 ## Post-audit final lifecycle (complete)
 
