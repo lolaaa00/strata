@@ -40,10 +40,7 @@ const expectedMethods = [
 if (JSON.stringify(publicMethods) !== JSON.stringify(expectedMethods)) findings.push(`Contract public surface changed: ${publicMethods.join(", ")}`);
 let blobBytes;
 try { blobBytes = execFileSync("git", ["show", "HEAD:contract/contracts/strata.py"], { cwd: root, encoding: "buffer", stdio: ["ignore", "pipe", "pipe"] }); }
-catch (standardError) {
-  try { blobBytes = execFileSync("git", [`--git-dir=${join(root, ".strata-git")}`, `--work-tree=${root}`, "show", "HEAD:contract/contracts/strata.py"], { cwd: root, encoding: "buffer", stdio: ["ignore", "pipe", "pipe"] }); }
-  catch { findings.push(`Unable to read contract Git blob: ${standardError.message}`); }
-}
+catch (error) { findings.push(`Unable to read contract Git blob: ${error.message}`); }
 if (blobBytes && !contractBytes.equals(blobBytes)) findings.push("Working-tree contract bytes differ from canonical HEAD Git blob");
 if (findings.length) { console.error(`Integrity audit failed:\n${findings.join("\n")}`); process.exit(1); }
 const sha256 = createHash("sha256").update(contractBytes).digest("hex");
