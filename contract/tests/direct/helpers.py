@@ -1,4 +1,5 @@
 import base64
+import hashlib
 import json
 
 
@@ -22,6 +23,11 @@ def blob_payload(text: str, sha: str):
         "content": base64.b64encode(text.encode("utf-8")).decode("ascii") + "\n",
         "size": len(text.encode("utf-8")),
     }
+
+
+def git_blob_sha(text: str):
+    raw = text.encode("utf-8")
+    return hashlib.sha1(b"blob " + str(len(raw)).encode("ascii") + b"\0" + raw).hexdigest()
 
 
 def mock_compare(vm, repo, base, head, status="ahead", merge_base=None, compare_head=None):
@@ -60,6 +66,15 @@ def mock_launch(vm, terms, status="ahead", merge_base=None, compare_head=None):
         {"status": 200, "body": json.dumps({"name": "main", "commit": {"sha": terminal}})},
     )
     mock_compare(vm, repo, baseline, terminal, status=status, merge_base=merge_base, compare_head=compare_head)
+    vm.mock_web(
+        rf"api\.github\.com/repos/{repo}/contents/auth\.py\?ref={baseline}$",
+        {"status": 200, "body": json.dumps({"path": "auth.py", "type": "file", "sha": "3" * 40})},
+    )
+    vm.mock_web(
+        rf"api\.github\.com/repos/{repo}/commits/{terminal}$",
+        {"status": 200, "body": json.dumps({"sha": terminal, "commit": {"tree": {"sha": terms["terminal_tree"]}}})},
+    )
+    mock_compare(vm, repo, terminal, terminal, status="identical")
 
 
 def mock_terminal(vm, terms, status="ahead", merge_base=None):
@@ -81,10 +96,10 @@ def mock_terminal(vm, terms, status="ahead", merge_base=None):
     )
 
 
-def mock_root_change(vm, terms, old_text="legacy_auth(user)", new_text="capability_auth(user)", new_blob_response_sha=None):
+def mock_root_change(vm, terms, old_text="legacy_auth(user)", new_text="capability_auth(user)", new_blob_response_sha=None, new_blob_response_text=None):
     repo = terms["repo"]
-    old_sha = "3" * 40
-    new_sha = "4" * 40
+    old_sha = git_blob_sha(old_text)
+    new_sha = git_blob_sha(new_text)
     vm.mock_web(
         rf"api\.github\.com/repos/{repo}/git/trees/{terms['baseline_tree']}$",
         {
@@ -113,7 +128,7 @@ def mock_root_change(vm, terms, old_text="legacy_auth(user)", new_text="capabili
     )
     vm.mock_web(
         rf"api\.github\.com/repos/{repo}/git/blobs/{new_sha}$",
-        {"status": 200, "body": json.dumps(blob_payload(new_text, new_blob_response_sha or new_sha))},
+        {"status": 200, "body": json.dumps(blob_payload(new_blob_response_text or new_text, new_blob_response_sha or new_sha))},
     )
 
 
@@ -144,11 +159,11 @@ def mock_junction_llm(vm, status="COMPATIBLE", criteria=None, rationale="Provide
 
 def mock_two_large_changes(vm, terms):
     repo = terms["repo"]
-    old_a, new_a, old_b, new_b = "5" * 40, "6" * 40, "7" * 40, "8" * 40
     text_a_old = "legacy_provider\n" + ("a" * 12900)
     text_a_new = "capability_provider\n" + ("b" * 12900)
     text_b_old = "legacy_consumer\n" + ("c" * 12900)
     text_b_new = "capability_consumer\n" + ("d" * 12900)
+    old_a, new_a, old_b, new_b = [git_blob_sha(text) for text in (text_a_old, text_a_new, text_b_old, text_b_new)]
     vm.mock_web(
         rf"api\.github\.com/repos/{repo}/git/trees/{terms['baseline_tree']}$",
         {"status": 200, "body": json.dumps({"sha": terms["baseline_tree"], "truncated": False, "tree": [

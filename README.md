@@ -2,7 +2,7 @@
 
 **Hierarchical consensus for repository-scale software transformations on GenLayer.**
 
-STRATA is a browser frontend plus one GenLayer Intelligent Contract. A sponsor freezes a repository, target branch, baseline commit, acceptance criteria, implementer wallet, deadline and GEN escrow. After close, GenLayer validators freeze the settlement-state target tip and the contract walks the Git tree incrementally. Unchanged subtrees disappear by SHA equality. Changed leaves become a complete manifest, the manifest is packed into bounded source shards, validators audit those shards, cross-shard interface junctions are checked, and deterministic aggregation produces one transformation certificate.
+STRATA is a browser frontend plus one GenLayer Intelligent Contract. A sponsor freezes a repository, target branch, baseline commit, acceptance criteria, implementer wallet, deadline and GEN escrow. Before close, the implementer submits a consensus-verified delivery checkpoint. After close, discovery uses only that immutable checkpoint and walks the Git tree incrementally. Unchanged subtrees disappear by SHA equality. Changed leaves become a complete manifest, the manifest is packed into bounded source shards, validators audit those shards, cross-shard interface junctions are checked, and deterministic aggregation produces one transformation certificate.
 
 The design goal is scale **across bounded transactions**, not one enormous prompt.
 
@@ -23,13 +23,19 @@ CONSENSUS-VERIFIED TREE DISCOVERY
   ↓
 COMPLETE CHANGED-FILE MANIFEST
   ↓
+DECLARED SCOPE + UNCHANGED EVIDENCE
+  ↓
+SOURCE-BACKED DEPENDENCY GRAPH
+  ↓
 BOUNDED SOURCE SHARDS
   ↓
 SEMANTIC SHARD CERTIFICATES
   ↓
 CROSS-SHARD JUNCTION CERTIFICATES
   ↓
-DETERMINISTIC GLOBAL CERTIFICATE
+DETERMINISTIC PROVISIONAL CERTIFICATE
+  ↓ 15-minute evidence challenge + reassessment
+FINAL CERTIFICATE
   ↓
 IMPLEMENTER RELEASE / SPONSOR REFUND
 ```
@@ -54,16 +60,17 @@ No application backend, database, server decision service, cron, queue or custod
 
 ## Protocol lifecycle
 
-1. **Launch** — freeze repo, target ref, baseline, objective, criteria, implementer, close time and escrow.
-2. **Terminal snapshot** — after close, validators freeze the first consensus-observed target tip and prove it descends from the baseline.
-3. **Tree discovery** — callers repeatedly process a bounded frontier. Equal subtree SHAs are skipped; only changed subtrees are expanded.
-4. **Manifest** — changed blobs are committed into one canonical manifest root.
-5. **Shards** — deterministic packing bounds file count and source bytes per semantic audit.
-6. **Shard consensus** — leader and validators independently classify every acceptance criterion and emit bounded cross-scope interface identifiers.
-7. **Junctions** — the contract deterministically pairs changed interfaces with dependent shards; validators audit compatibility using both immutable source shards.
-8. **Certificate** — deterministic aggregation marks each criterion SATISFIED, VIOLATED, AMBIGUOUS or NOT_RELEVANT.
-9. **Settlement** — all criteria SATISFIED releases escrow to the implementer. Any VIOLATED criterion refunds sponsors. Unresolved work moves no GEN and can expire after grace.
-10. **Withdrawal** — balances are pull-based and zeroed before transfer.
+1. **Launch** — freeze repo, target ref, baseline, objective, criteria, 1–5 explicit scope paths, implementer, close time and escrow.
+2. **Delivery checkpoint** — before close, only the implementer can checkpoint a commit. Validators verify its Git identity, tree, baseline ancestry, and reachability from the target branch. A later valid pre-close checkpoint replaces the earlier one.
+3. **Tree discovery** — after close, discovery uses only the checkpoint. Callers process a bounded tree frontier and freeze the complete changed-file manifest.
+4. **Scoped evidence** — a second bounded frontier enumerates changed and unchanged files under the declared scope. Every source blob is re-fetched by SHA and its real Git object hash is recomputed.
+5. **Dependency graph** — bounded syntax handling extracts Python and JavaScript/TypeScript/JSX/TSX imports and re-exports. Local providers are resolved against the committed scoped tree; unresolved material references fail closed.
+6. **Shards and junctions** — evidence is packed deterministically. Validators audit semantic criteria. Mandatory cross-shard junctions come from the source-backed graph; model hints cannot suppress them.
+7. **Provisional certificate** — deterministic aggregation commits the checkpoint, terms, manifest, scope, evidence, graph, shard, junction, and criterion roots. Incomplete coverage can never propose COMPLETE.
+8. **Challenge and reassessment** — escrow remains locked for a fixed 15-minute window. Sponsors may challenge provisional COMPLETE and the implementer may challenge provisional FAILED, using only committed evidence paths. Validators independently re-fetch and reassess the complete bounded challenge set.
+9. **Settlement and withdrawal** — anyone can settle an unchallenged or reviewed certificate after the window. COMPLETE credits the implementer; FAILED refunds sponsors pro rata. Balances are pull-based and zeroed before transfer.
+
+The application-level evidence challenge is separate from GenLayer's network transaction appeal mechanism.
 
 ## Bounded work
 
@@ -78,6 +85,13 @@ STRATA intentionally fails closed rather than silently truncating evidence.
 - maximum shards: 96
 - maximum junctions: 96
 - maximum acceptance criteria: 5
+- maximum declared scope entries: 5
+- maximum scoped files: 64
+- maximum scope frontier tasks: 256
+- maximum deterministic dependency edges: 128
+- maximum imports per file: 32
+- maximum certificate challenges: 8
+- fixed challenge window: 15 minutes
 
 This supports focused transformations inside very large repositories while keeping each GenLayer operation auditable and bounded. It does **not** pretend an arbitrary multi-million-line transformation can be semantically consumed in one call.
 

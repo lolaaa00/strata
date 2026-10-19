@@ -2,9 +2,9 @@
 
 ## Current status
 
-**FINAL RELEASE DEPLOYED AND LIVE LIFECYCLE VERIFIED**
+**PREVIOUS RELEASE VERIFIED; CONTESTED-CERTIFICATION MILESTONE PENDING NEW DEPLOYMENT**
 
-The hostile audit materially changed `contract/contracts/strata.py`. The exact corrected candidate is deployed, source-verified, settled `COMPLETE`, and its implementer allocation has been withdrawn.
+The address below is the last verified historical release. It does not contain the new checkpoint, scoped-evidence, deterministic dependency-graph, or challenge workflow. Any milestone deployment must use a newly frozen source SHA and replaces this address as current.
 
 - Contract checkpoint commit: `f93084f65f6713de47b1c4013fcdceba44b6d7f5`
 - Canonical `strata.py` SHA-256: `e9e04f341f274baf1f3e042fa6899bd8a03f622fce86dcefed4ba7820a7d8a5d`

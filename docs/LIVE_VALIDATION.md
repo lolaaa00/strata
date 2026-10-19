@@ -1,3 +1,7 @@
+# Milestone live validation
+
+The transactions below prove the previous 19-method release and remain historical evidence. They do **not** prove the new contested-certification milestone. New funded success and challenge lifecycles must be appended only after the new 31-method contract is deployed and independently read back.
+
 # Live validation
 
 ## Post-audit final lifecycle (complete)

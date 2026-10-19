@@ -31,15 +31,19 @@ for (const [snippet, reason] of [
 if (contract.includes("gl.transfer(")) findings.push("Unsupported gl.transfer call found; Studionet requires get_contract_at(...).emit_transfer(...)");
 const publicMethods = [...contract.matchAll(/@gl\.public\.(?:view|write)(?:\.payable)?\s+def\s+(\w+)\s*\(/g)].map((match) => match[1]);
 const expectedMethods = [
-  "launch_transformation", "add_funding", "start_discovery", "advance_discovery", "finalize_manifest", "build_shards",
-  "audit_shard", "build_junctions", "audit_junction", "finalize_transformation", "expire_unresolved", "withdraw",
-  "get_transformation", "get_change_record", "get_shard", "get_junction", "get_sponsor_total", "get_balance", "get_next_transformation_id"
+  "launch_transformation", "add_funding", "submit_delivery_checkpoint", "start_discovery", "advance_discovery", "finalize_manifest",
+  "start_scope_discovery", "advance_scope_discovery", "finalize_scope_discovery", "process_evidence", "finalize_evidence", "build_shards",
+  "audit_shard", "build_junctions", "audit_junction", "propose_certificate", "challenge_certificate", "review_challenge", "settle_certificate",
+  "expire_unresolved", "withdraw", "get_transformation", "get_change_record", "get_shard", "get_junction", "get_evidence_record",
+  "get_dependency_edge", "get_challenge", "get_sponsor_total", "get_balance", "get_next_transformation_id"
 ];
 if (JSON.stringify(publicMethods) !== JSON.stringify(expectedMethods)) findings.push(`Contract public surface changed: ${publicMethods.join(", ")}`);
 let blobBytes;
-const checkpointGitDir = join(root, ".strata-git");
-try { blobBytes = execFileSync("git", [`--git-dir=${checkpointGitDir}`, `--work-tree=${root}`, "show", "HEAD:contract/contracts/strata.py"], { cwd: root, encoding: "buffer", stdio: ["ignore", "pipe", "pipe"] }); }
-catch (error) { findings.push(`Unable to read contract Git blob: ${error.message}`); }
+try { blobBytes = execFileSync("git", ["show", "HEAD:contract/contracts/strata.py"], { cwd: root, encoding: "buffer", stdio: ["ignore", "pipe", "pipe"] }); }
+catch (standardError) {
+  try { blobBytes = execFileSync("git", [`--git-dir=${join(root, ".strata-git")}`, `--work-tree=${root}`, "show", "HEAD:contract/contracts/strata.py"], { cwd: root, encoding: "buffer", stdio: ["ignore", "pipe", "pipe"] }); }
+  catch { findings.push(`Unable to read contract Git blob: ${standardError.message}`); }
+}
 if (blobBytes && !contractBytes.equals(blobBytes)) findings.push("Working-tree contract bytes differ from canonical HEAD Git blob");
 if (findings.length) { console.error(`Integrity audit failed:\n${findings.join("\n")}`); process.exit(1); }
 const sha256 = createHash("sha256").update(contractBytes).digest("hex");

@@ -11,6 +11,7 @@ export default function LaunchPage() {
   const wallet = useWallet(); const tx = useTransactions(); const router = useRouter();
   const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null);
   const [criteria, setCriteria] = useState(["", ""]);
+  const [scope, setScope] = useState([""]);
   const [closeAt, setCloseAt] = useState("");
   const [closeBounds, setCloseBounds] = useState({ min: "", max: "" });
   useEffect(() => {
@@ -33,7 +34,7 @@ export default function LaunchPage() {
     try {
       setBusy(true);
       const hash = await launchTransformation(wallet.provider, wallet.address, {
-        repo: String(form.get("repo") || "").trim(), targetRef: String(form.get("targetRef") || "").trim(), baselineCommit: String(form.get("baseline") || "").trim(), title: String(form.get("title") || "").trim(), objective: String(form.get("objective") || "").trim(), criteria: cleaned, implementer: String(form.get("implementer") || "").trim(), closeAt: validateCloseTime(String(form.get("closeAt") || "")), value: parseGen(String(form.get("funding") || "")),
+        repo: String(form.get("repo") || "").trim(), targetRef: String(form.get("targetRef") || "").trim(), baselineCommit: String(form.get("baseline") || "").trim(), title: String(form.get("title") || "").trim(), objective: String(form.get("objective") || "").trim(), criteria: cleaned, scope: scope.map((x) => x.trim()).filter(Boolean), implementer: String(form.get("implementer") || "").trim(), closeAt: validateCloseTime(String(form.get("closeAt") || "")), value: parseGen(String(form.get("funding") || "")),
       });
       tx.track(String(hash), "Launch transformation"); router.push("/");
     } catch (e) { setError(e instanceof Error ? e.message : "Launch failed."); }
@@ -50,6 +51,9 @@ export default function LaunchPage() {
         <div className="field full"><label htmlFor="objective">Transformation objective</label><textarea id="objective" name="objective" maxLength={1800} required/></div>
         {criteria.map((value, index) => <div className="field full" key={index}><label htmlFor={`criterion-${index}`}>Acceptance criterion {index + 1}</label><input id={`criterion-${index}`} value={value} maxLength={420} onChange={(e) => setCriteria((all) => all.map((x, i) => i === index ? e.target.value : x))} required={index === 0}/></div>)}
         {criteria.length < 5 ? <div className="field full"><button type="button" className="btn btn-ghost" onClick={() => setCriteria((x) => [...x, ""])}>Add criterion</button></div> : null}
+        <div className="field full"><label>Verification scope</label><span className="hint">Add 1–5 repository-relative files or directory prefixes. The certificate covers this declared scope.</span></div>
+        {scope.map((value, index) => <div className="field full" key={`scope-${index}`}><label htmlFor={`scope-${index}`}>Scope path {index + 1}</label><input id={`scope-${index}`} value={value} placeholder="src/auth" onChange={(e) => setScope((all) => all.map((x, i) => i === index ? e.target.value : x))} required/></div>)}
+        {scope.length < 5 ? <div className="field full"><button type="button" className="btn btn-ghost" onClick={() => setScope((x) => [...x, ""])}>Add scope path</button></div> : null}
         <div className="field"><label htmlFor="closeAt">Close at</label><input id="closeAt" name="closeAt" type="datetime-local" value={closeAt} min={closeBounds.min} max={closeBounds.max} onChange={(event) => setCloseAt(event.target.value)} required/><span className="hint">Must be at least 65 minutes and less than 120 days from now. Times use your device’s local timezone.</span></div>
         <div className="field"><label htmlFor="funding">Initial funding (GEN)</label><input id="funding" name="funding" inputMode="decimal" defaultValue="1" required/></div>
       </div>

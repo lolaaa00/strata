@@ -1,5 +1,5 @@
 export type CriterionResult = "SATISFIED" | "VIOLATED" | "AMBIGUOUS" | "NOT_RELEVANT";
-export type TransformationStatus = "OPEN" | "DISCOVERING" | "MANIFEST_READY" | "AUDITING" | "JUNCTIONS_READY" | "READY_TO_FINALIZE" | "INCONCLUSIVE" | "COMPLETE" | "FAILED" | "EXPIRED";
+export type TransformationStatus = "OPEN" | "DISCOVERING" | "MANIFEST_READY" | "SCOPE_DISCOVERING" | "EVIDENCE_PROCESSING" | "EVIDENCE_READY" | "AUDITING" | "JUNCTIONS_READY" | "READY_TO_FINALIZE" | "PROVISIONAL" | "CHALLENGED" | "READY_TO_SETTLE" | "INCONCLUSIVE" | "COMPLETE" | "FAILED" | "EXPIRED";
 
 export type Transformation = {
   id: number;
@@ -10,6 +10,7 @@ export type Transformation = {
   title: string;
   objective: string;
   criteria: string[];
+  scope: string[];
   implementer_wallet: string;
   creator: string;
   status: TransformationStatus;
@@ -19,14 +20,31 @@ export type Transformation = {
   terminal_commit: string;
   terminal_tree: string;
   terminal_snapshot_digest: string;
+  checkpoint_commit: string;
+  checkpoint_tree: string;
+  checkpoint_submitted_at: number;
+  checkpoint_digest: string;
   frontier_head: number;
   frontier_tail: number;
   change_count: number;
   manifest_root: string;
+  scope_frontier_head: number;
+  scope_frontier_tail: number;
+  scope_file_count: number;
+  evidence_processed_count: number;
+  evidence_coverage_root: string;
+  dependency_count: number;
+  dependency_graph_root: string;
+  coverage_status: string;
   shard_count: number;
   junction_count: number;
   certificate_root: string;
   final_result: string;
+  provisional_result: string;
+  provisional_at: number;
+  challenge_deadline: number;
+  challenge_count: number;
+  reassessment_digest: string;
   settlement_digest: string;
   settlement: null | {
     result: string;
@@ -42,6 +60,9 @@ export type Transformation = {
 export type ChangeRecord = { index: number; path: string; change_type: string; old_sha: string; new_sha: string; old_mode?: string; new_mode?: string; old_size: number; new_size: number; record_digest: string };
 export type Shard = { index: number; change_indices: number[]; status: string; source_digest: string; certificate_digest: string; criteria: Record<string, CriterionResult>; interfaces_changed: string[]; dependencies: string[]; rationale: string };
 export type Junction = { index: number; interface_id: string; provider_shard: number; consumer_shard: number; status: string; criteria: Record<string, CriterionResult>; rationale: string; certificate_digest: string };
+export type EvidenceRecord = { index: number; evidence_id: string; criterion_indices: number[]; path: string; role: string; baseline_sha: string; delivery_sha: string; change_type: string; source_digest: string; dependency_refs: number[]; coverage_status: string; unresolved_gap?: string; finding: Record<string, CriterionResult> };
+export type DependencyEdge = { index: number; consumer_path: string; provider_path: string; reference: string; source_sha: string; evidence_id: string; classification: string; resolved: boolean; semantic_required: boolean; edge_digest: string };
+export type Challenge = { index: number; challenger: string; criterion_index: number; evidence_index: number; evidence_path: string; reason: string; submitted_at: number; status: string; challenge_digest: string; review_digest?: string };
 
 export type TxStage = "submitted" | "pending" | "accepted" | "finalized_unverified" | "finalized" | "failed" | "undetermined" | "canceled" | "timeout";
 export type TxRecord = { hash: string; label: string; stage: TxStage; createdAt: number; statusName?: string; executionName?: string };

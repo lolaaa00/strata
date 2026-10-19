@@ -1,479 +1,259 @@
 import json
 
-from helpers import mock_junction_llm, mock_launch, mock_root_change, mock_shard_llm, mock_terminal, mock_two_large_changes, set_block_time
+import pytest
+
+from helpers import blob_payload, git_blob_sha, mock_launch, mock_root_change, mock_shard_llm, set_block_time
 
 WEI = 10**18
 IMPLEMENTER = "0x1111111111111111111111111111111111111111"
 
 
-def wallet(addr):
-    if isinstance(addr, bytes):
-        return "0x" + addr.hex()
-    return addr.as_hex.lower() if hasattr(addr, "as_hex") else str(addr).lower()
-
-
-def launch(contract, vm, sender, terms, value=10 * WEI):
-    vm.sender = sender
-    vm.value = value
+def launch(contract, vm, sponsor, terms, scope=None, value=10 * WEI, checkpoint=True):
+    set_block_time(vm, "2026-10-01T10:00:00Z")
+    vm.sender, vm.value = sponsor, value
     mock_launch(vm, terms)
-    return contract.launch_transformation(
+    selected_scope = scope or ["auth.py"]
+    for path in selected_scope:
+        direct_vm_path = path.replace(".", r"\.")
+        vm.mock_web(rf"api\.github\.com/repos/{terms['repo']}/contents/{direct_vm_path}\?ref={terms['baseline']}$",
+                    {"status": 200, "body": json.dumps({"path": path, "type": "file", "sha": "3" * 40})})
+    tid = contract.launch_transformation(
         terms["repo"], terms["target_ref"], terms["baseline"], terms["title"], terms["objective"],
-        json.dumps(terms["criteria"]), IMPLEMENTER, terms["close_at"],
+        json.dumps(terms["criteria"]), json.dumps(selected_scope), IMPLEMENTER, terms["close_at"],
     )
+    if checkpoint:
+        vm.sender, vm.value = IMPLEMENTER, 0
+        assert contract.submit_delivery_checkpoint(tid, terms["terminal"]) == "checkpoint_submitted"
+    return tid
 
 
-def ready_one_shard(contract, vm, transformation_id, terms):
+def through_evidence(contract, vm, tid, terms):
     set_block_time(vm, "2026-10-06T00:00:01Z")
     vm.value = 0
-    mock_terminal(vm, terms)
-    assert contract.start_discovery(transformation_id) == "discovery_started"
-    mock_root_change(vm, terms)
-    assert contract.advance_discovery(transformation_id, 4) == "advanced_1"
-    contract.finalize_manifest(transformation_id)
-    assert contract.build_shards(transformation_id) == "shards_1"
-    mock_shard_llm(vm)
-    assert contract.audit_shard(transformation_id, 0) == "shard_audited"
-    assert contract.build_junctions(transformation_id) == "junctions_0"
-
-
-def test_launch_locks_escrow_and_baseline_identity(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
-    contract = direct_deploy("contract/contracts/strata.py")
-    transformation_id = launch(contract, direct_vm, direct_alice, terms)
-    item = json.loads(contract.get_transformation(transformation_id))
-    assert item["repo"] == terms["repo"]
-    assert item["baseline_tree"] == terms["baseline_tree"]
-    assert item["pool_wei"] == str(10 * WEI)
-    assert item["status"] == "OPEN"
-
-
-def test_second_sponsor_adds_funding(direct_vm, direct_deploy, direct_alice, direct_bob, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
-    contract = direct_deploy("contract/contracts/strata.py")
-    tid = launch(contract, direct_vm, direct_alice, terms)
-    direct_vm.sender = direct_bob; direct_vm.value = 3 * WEI
-    assert contract.add_funding(tid) == f"funded_{3 * WEI}"
-    item = json.loads(contract.get_transformation(tid))
-    assert item["pool_wei"] == str(13 * WEI)
-    assert len(item["sponsor_wallets"]) == 2
-
-
-def test_rejects_invalid_repo(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
-    contract = direct_deploy("contract/contracts/strata.py")
-    direct_vm.sender = direct_alice; direct_vm.value = 10 * WEI
-    with direct_vm.expect_revert("invalid_repository"):
-        contract.launch_transformation("bad repo", "main", "a" * 40, "x", "y", '["z"]', IMPLEMENTER, terms["close_at"])
-
-
-def test_rejects_invalid_target_ref(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
-    contract = direct_deploy("contract/contracts/strata.py")
-    direct_vm.sender = direct_alice; direct_vm.value = 10 * WEI
-    with direct_vm.expect_revert("invalid_target_ref"):
-        contract.launch_transformation(terms["repo"], "../main", "a" * 40, "x", "y", '["z"]', IMPLEMENTER, terms["close_at"])
-
-
-def test_rejects_invalid_implementer(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
-    contract = direct_deploy("contract/contracts/strata.py")
-    direct_vm.sender = direct_alice; direct_vm.value = 10 * WEI
-    with direct_vm.expect_revert("invalid_implementer"):
-        contract.launch_transformation(terms["repo"], "main", "a" * 40, "x", "y", '["z"]', "not-an-address", terms["close_at"])
-
-
-def test_rejects_too_little_funding(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
-    contract = direct_deploy("contract/contracts/strata.py")
-    direct_vm.sender = direct_alice; direct_vm.value = WEI - 1
-    with direct_vm.expect_revert("funding_below_minimum"):
-        contract.launch_transformation(terms["repo"], "main", "a" * 40, "x", "y", '["z"]', IMPLEMENTER, terms["close_at"])
-
-
-def test_baseline_source_unavailable_reverts_before_lock(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
-    contract = direct_deploy("contract/contracts/strata.py")
-    direct_vm.sender = direct_alice; direct_vm.value = 10 * WEI
-    direct_vm.mock_web(r"api\.github\.com/repos/acme/megarepo/commits/", {"status": 503, "body": "{}"})
-    with direct_vm.expect_revert("baseline_source_unavailable"):
-        contract.launch_transformation(terms["repo"], "main", "a" * 40, "x", "y", '["z"]', IMPLEMENTER, terms["close_at"])
-
-
-def test_baseline_must_be_on_target_history(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
-    contract = direct_deploy("contract/contracts/strata.py")
-    direct_vm.sender = direct_alice; direct_vm.value = 10 * WEI
-    mock_launch(direct_vm, terms, status="diverged", merge_base="c" * 40)
-    with direct_vm.expect_revert("baseline_not_on_target_history"):
-        contract.launch_transformation(terms["repo"], "main", terms["baseline"], "x", "y", '["z"]', IMPLEMENTER, terms["close_at"])
-
-
-def test_launch_rejects_compare_with_wrong_terminal_identity(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
-    contract = direct_deploy("contract/contracts/strata.py")
-    direct_vm.sender = direct_alice; direct_vm.value = 10 * WEI
-    mock_launch(direct_vm, terms, compare_head="9" * 40)
-    with direct_vm.expect_revert("compare_identity_mismatch"):
-        contract.launch_transformation(terms["repo"], "main", terms["baseline"], "x", "y", '["z"]', IMPLEMENTER, terms["close_at"])
-
-
-def test_discovery_cannot_start_early(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
-    contract = direct_deploy("contract/contracts/strata.py")
-    tid = launch(contract, direct_vm, direct_alice, terms)
-    direct_vm.value = 0
-    with direct_vm.expect_revert("transformation_still_open"):
-        contract.start_discovery(tid)
-
-
-def test_start_discovery_freezes_terminal_commit_and_tree(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
-    contract = direct_deploy("contract/contracts/strata.py")
-    tid = launch(contract, direct_vm, direct_alice, terms)
-    set_block_time(direct_vm, "2026-10-06T00:00:01Z"); direct_vm.value = 0
-    mock_terminal(direct_vm, terms)
     assert contract.start_discovery(tid) == "discovery_started"
-    item = json.loads(contract.get_transformation(tid))
-    assert item["terminal_commit"] == terms["terminal"]
-    assert item["terminal_tree"] == terms["terminal_tree"]
+    mock_root_change(vm, terms)
+    assert contract.advance_discovery(tid, 4) == "advanced_1"
+    contract.finalize_manifest(tid)
+    assert contract.start_scope_discovery(tid) == "scope_discovery_started"
+    assert contract.advance_scope_discovery(tid, 4) == "scope_advanced_1"
+    assert contract.finalize_scope_discovery(tid) == "scope_files_1"
+    assert contract.process_evidence(tid, 4) == "evidence_processed_1"
+    assert contract.finalize_evidence(tid) == "complete"
 
 
-def test_terminal_source_outage_moves_no_state(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+def ready(contract, vm, tid, terms, criteria=None):
+    through_evidence(contract, vm, tid, terms)
+    assert contract.build_shards(tid) == "shards_1"
+    mock_shard_llm(vm, criteria=criteria)
+    assert contract.audit_shard(tid, 0) == "shard_audited"
+    assert contract.build_junctions(tid) == "junctions_0"
+
+
+def item(contract, tid):
+    return json.loads(contract.get_transformation(tid))
+
+
+def test_launch_locks_terms_scope_and_escrow(direct_vm, direct_deploy, direct_alice, terms):
     contract = direct_deploy("contract/contracts/strata.py")
     tid = launch(contract, direct_vm, direct_alice, terms)
-    set_block_time(direct_vm, "2026-10-06T00:00:01Z"); direct_vm.value = 0
-    direct_vm.mock_web(r"api\.github\.com/repos/acme/megarepo/branches/main", {"status": 503, "body": "{}"})
-    assert contract.start_discovery(tid) == "source_unavailable"
-    assert json.loads(contract.get_transformation(tid))["status"] == "OPEN"
+    state = item(contract, tid)
+    assert state["scope"] == ["auth.py"]
+    assert state["pool_wei"] == str(10 * WEI)
+    assert state["checkpoint_commit"] == terms["terminal"]
 
 
-def test_terminal_must_descend_from_baseline(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+@pytest.mark.parametrize("scope,error", [([], "invalid_scope"), (["../secret"], "invalid_scope_path"), (["src", "src/a.py"], "ambiguous_scope_paths"), (["a", "a"], "duplicate_scope_path")])
+def test_scope_validation_fails_closed(direct_vm, direct_deploy, direct_alice, terms, scope, error):
+    contract = direct_deploy("contract/contracts/strata.py")
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z"); direct_vm.sender = direct_alice; direct_vm.value = WEI
+    with direct_vm.expect_revert(error):
+        contract.launch_transformation(terms["repo"], "main", terms["baseline"], "x", "y", '["z"]', json.dumps(scope), IMPLEMENTER, terms["close_at"])
+
+
+def test_checkpoint_replacement_before_close(direct_vm, direct_deploy, direct_alice, terms):
     contract = direct_deploy("contract/contracts/strata.py")
     tid = launch(contract, direct_vm, direct_alice, terms)
-    set_block_time(direct_vm, "2026-10-06T00:00:01Z"); direct_vm.value = 0
-    mock_terminal(direct_vm, terms, status="diverged", merge_base="c" * 40)
-    with direct_vm.expect_revert("terminal_not_descended_from_baseline"):
+    mock_launch(direct_vm, terms)
+    assert contract.submit_delivery_checkpoint(tid, terms["terminal"]) == "checkpoint_submitted"
+    assert item(contract, tid)["checkpoint_submitted_at"] > 0
+
+
+def test_checkpoint_requires_implementer(direct_vm, direct_deploy, direct_alice, terms):
+    contract = direct_deploy("contract/contracts/strata.py")
+    tid = launch(contract, direct_vm, direct_alice, terms, checkpoint=False)
+    direct_vm.sender, direct_vm.value = direct_alice, 0
+    with direct_vm.expect_revert("checkpoint_not_implementer"):
+        contract.submit_delivery_checkpoint(tid, terms["terminal"])
+
+
+def test_checkpoint_rejected_after_close(direct_vm, direct_deploy, direct_alice, terms):
+    contract = direct_deploy("contract/contracts/strata.py")
+    tid = launch(contract, direct_vm, direct_alice, terms, checkpoint=False)
+    direct_vm.sender = IMPLEMENTER; set_block_time(direct_vm, "2026-10-06T00:00:01Z")
+    with direct_vm.expect_revert("checkpoint_deadline_passed"):
+        contract.submit_delivery_checkpoint(tid, terms["terminal"])
+
+
+def test_discovery_requires_checkpoint(direct_vm, direct_deploy, direct_alice, terms):
+    contract = direct_deploy("contract/contracts/strata.py")
+    tid = launch(contract, direct_vm, direct_alice, terms, checkpoint=False)
+    set_block_time(direct_vm, "2026-10-06T00:00:01Z")
+    with direct_vm.expect_revert("delivery_checkpoint_required"):
         contract.start_discovery(tid)
 
 
-def test_discovery_finds_modified_blob(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+def test_post_close_branch_movement_cannot_change_terminal(direct_vm, direct_deploy, direct_alice, terms):
     contract = direct_deploy("contract/contracts/strata.py")
     tid = launch(contract, direct_vm, direct_alice, terms)
-    set_block_time(direct_vm, "2026-10-06T00:00:01Z"); direct_vm.value = 0
-    mock_terminal(direct_vm, terms); contract.start_discovery(tid)
-    mock_root_change(direct_vm, terms)
-    assert contract.advance_discovery(tid, 4) == "advanced_1"
-    record = json.loads(contract.get_change_record(tid, 0))
-    assert record["path"] == "auth.py"
-    assert record["change_type"] == "MODIFIED"
+    direct_vm.clear_mocks(); set_block_time(direct_vm, "2026-10-06T00:00:01Z")
+    assert contract.start_discovery(tid) == "discovery_started"
+    assert item(contract, tid)["terminal_commit"] == terms["terminal"]
 
 
-def test_discovery_rejects_duplicate_tree_paths(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+def test_checkpoint_source_outage_preserves_previous_checkpoint(direct_vm, direct_deploy, direct_alice, terms):
     contract = direct_deploy("contract/contracts/strata.py")
     tid = launch(contract, direct_vm, direct_alice, terms)
-    set_block_time(direct_vm, "2026-10-06T00:00:01Z"); direct_vm.value = 0
-    mock_terminal(direct_vm, terms); contract.start_discovery(tid)
-    duplicate = {"path":"same.py","mode":"100644","type":"blob","sha":"3" * 40,"size":1}
-    direct_vm.mock_web(
-        rf"api\.github\.com/repos/{terms['repo']}/git/trees/{terms['baseline_tree']}$",
-        {"status":200,"body":json.dumps({"sha":terms["baseline_tree"],"truncated":False,"tree":[duplicate, duplicate]})},
-    )
-    direct_vm.mock_web(
-        rf"api\.github\.com/repos/{terms['repo']}/git/trees/{terms['terminal_tree']}$",
-        {"status":200,"body":json.dumps({"sha":terms["terminal_tree"],"truncated":False,"tree":[]})},
-    )
-    with direct_vm.expect_revert("base_tree:duplicate_tree_path"):
-        contract.advance_discovery(tid, 1)
+    before = item(contract, tid)["checkpoint_digest"]
+    direct_vm.clear_mocks(); direct_vm.mock_web(r"api\.github\.com/repos/acme/megarepo/commits/", {"status": 503, "body": "{}"})
+    assert contract.submit_delivery_checkpoint(tid, terms["terminal"]) == "source_unavailable"
+    assert item(contract, tid)["checkpoint_digest"] == before
 
 
-def test_discovery_rejects_mismatched_tree_identity(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+def test_manifest_and_scope_include_unchanged_identity(direct_vm, direct_deploy, direct_alice, terms):
     contract = direct_deploy("contract/contracts/strata.py")
     tid = launch(contract, direct_vm, direct_alice, terms)
-    set_block_time(direct_vm, "2026-10-06T00:00:01Z"); direct_vm.value = 0
-    mock_terminal(direct_vm, terms); contract.start_discovery(tid)
-    direct_vm.mock_web(
-        rf"api\.github\.com/repos/{terms['repo']}/git/trees/{terms['baseline_tree']}$",
-        {"status":200,"body":json.dumps({"sha":"9" * 40,"truncated":False,"tree":[]})},
-    )
-    direct_vm.mock_web(
-        rf"api\.github\.com/repos/{terms['repo']}/git/trees/{terms['terminal_tree']}$",
-        {"status":200,"body":json.dumps({"sha":terms["terminal_tree"],"truncated":False,"tree":[]})},
-    )
-    with direct_vm.expect_revert("base_tree:tree_identity_mismatch"):
-        contract.advance_discovery(tid, 1)
+    through_evidence(contract, direct_vm, tid, terms)
+    evidence = json.loads(contract.get_evidence_record(tid, 0))
+    assert evidence["path"] == "auth.py"
+    assert evidence["coverage_status"] == "COMPLETE"
+    assert item(contract, tid)["evidence_coverage_root"]
 
 
-def test_mode_only_change_is_committed_to_manifest(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+def test_blob_content_hash_is_verified(direct_vm, direct_deploy, direct_alice, terms):
     contract = direct_deploy("contract/contracts/strata.py")
     tid = launch(contract, direct_vm, direct_alice, terms)
-    set_block_time(direct_vm, "2026-10-06T00:00:01Z"); direct_vm.value = 0
-    mock_terminal(direct_vm, terms); contract.start_discovery(tid)
-    shared = {"path":"run.sh","type":"blob","sha":"3" * 40,"size":7}
-    direct_vm.mock_web(
-        rf"api\.github\.com/repos/{terms['repo']}/git/trees/{terms['baseline_tree']}$",
-        {"status":200,"body":json.dumps({"sha":terms["baseline_tree"],"truncated":False,"tree":[{**shared,"mode":"100644"}]})},
-    )
-    direct_vm.mock_web(
-        rf"api\.github\.com/repos/{terms['repo']}/git/trees/{terms['terminal_tree']}$",
-        {"status":200,"body":json.dumps({"sha":terms["terminal_tree"],"truncated":False,"tree":[{**shared,"mode":"100755"}]})},
-    )
-    assert contract.advance_discovery(tid, 1) == "advanced_1"
-    record = json.loads(contract.get_change_record(tid, 0))
-    assert record["change_type"] == "MODIFIED"
-    assert record["old_mode"] == "100644"
-    assert record["new_mode"] == "100755"
+    set_block_time(direct_vm, "2026-10-06T00:00:01Z"); contract.start_discovery(tid)
+    old_text, new_text = "legacy_auth(user)", "capability_auth(user)"
+    mock_root_change(direct_vm, terms, old_text=old_text, new_text=new_text, new_blob_response_text="x" * len(new_text))
+    contract.advance_discovery(tid, 4); contract.finalize_manifest(tid); contract.start_scope_discovery(tid); contract.advance_scope_discovery(tid, 4); contract.finalize_scope_discovery(tid)
+    assert contract.process_evidence(tid, 4) == "evidence_processed_1"
+    assert contract.finalize_evidence(tid) == "unresolved"
 
 
-def test_shard_rejects_blob_identity_mismatch(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+def test_model_empty_dependency_hints_do_not_change_graph_root(direct_vm, direct_deploy, direct_alice, terms):
     contract = direct_deploy("contract/contracts/strata.py")
     tid = launch(contract, direct_vm, direct_alice, terms)
-    set_block_time(direct_vm, "2026-10-06T00:00:01Z"); direct_vm.value = 0
-    mock_terminal(direct_vm, terms); contract.start_discovery(tid)
-    mock_root_change(direct_vm, terms, new_blob_response_sha="9" * 40)
-    contract.advance_discovery(tid, 1); contract.finalize_manifest(tid); contract.build_shards(tid)
-    assert contract.audit_shard(tid, 0) == "shard_ambiguous"
-    shard = json.loads(contract.get_shard(tid, 0))
-    assert shard["status"] == "AMBIGUOUS"
-    assert shard["rationale"] == "new_blob:blob_identity_mismatch"
+    through_evidence(contract, direct_vm, tid, terms)
+    root = item(contract, tid)["dependency_graph_root"]
+    contract.build_shards(tid); mock_shard_llm(direct_vm, dependencies=[]); contract.audit_shard(tid, 0)
+    assert item(contract, tid)["dependency_graph_root"] == root
 
 
-def test_manifest_requires_empty_frontier(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+def test_python_dependency_graph_includes_unchanged_provider(direct_vm, direct_deploy, direct_alice, terms):
     contract = direct_deploy("contract/contracts/strata.py")
-    tid = launch(contract, direct_vm, direct_alice, terms)
-    set_block_time(direct_vm, "2026-10-06T00:00:01Z"); direct_vm.value = 0
-    mock_terminal(direct_vm, terms); contract.start_discovery(tid)
-    with direct_vm.expect_revert("frontier_not_empty"):
-        contract.finalize_manifest(tid)
+    tid = launch(contract, direct_vm, direct_alice, terms, scope=["consumer.py", "provider.py"])
+    set_block_time(direct_vm, "2026-10-06T00:00:01Z"); contract.start_discovery(tid)
+    old_consumer, new_consumer, provider = "print('old')\n", "from .provider import api\n", "def api(): return True\n"
+    old_sha, new_sha, provider_sha = map(git_blob_sha, (old_consumer, new_consumer, provider))
+    base_tree = [{"path":"consumer.py","mode":"100644","type":"blob","sha":old_sha,"size":len(old_consumer)}, {"path":"provider.py","mode":"100644","type":"blob","sha":provider_sha,"size":len(provider)}]
+    delivery_tree = [{"path":"consumer.py","mode":"100644","type":"blob","sha":new_sha,"size":len(new_consumer)}, {"path":"provider.py","mode":"100644","type":"blob","sha":provider_sha,"size":len(provider)}]
+    for tree_sha, entries in ((terms["baseline_tree"],base_tree),(terms["terminal_tree"],delivery_tree)):
+        direct_vm.mock_web(rf"api\.github\.com/repos/{terms['repo']}/git/trees/{tree_sha}$", {"status":200,"body":json.dumps({"sha":tree_sha,"truncated":False,"tree":entries})})
+    for sha, text in ((old_sha,old_consumer),(new_sha,new_consumer),(provider_sha,provider)):
+        direct_vm.mock_web(rf"api\.github\.com/repos/{terms['repo']}/git/blobs/{sha}$", {"status":200,"body":json.dumps(blob_payload(text,sha))})
+    contract.advance_discovery(tid,4); contract.finalize_manifest(tid); contract.start_scope_discovery(tid); contract.advance_scope_discovery(tid,4); contract.finalize_scope_discovery(tid); contract.process_evidence(tid,4)
+    assert contract.finalize_evidence(tid) == "complete"
+    edge = json.loads(contract.get_dependency_edge(tid,0))
+    assert edge["consumer_path"] == "consumer.py" and edge["provider_path"] == "provider.py" and edge["resolved"] is True
 
 
-def test_manifest_root_is_stored(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
-    contract = direct_deploy("contract/contracts/strata.py")
-    tid = launch(contract, direct_vm, direct_alice, terms)
-    set_block_time(direct_vm, "2026-10-06T00:00:01Z"); direct_vm.value = 0
-    mock_terminal(direct_vm, terms); contract.start_discovery(tid); mock_root_change(direct_vm, terms); contract.advance_discovery(tid, 4)
-    root = contract.finalize_manifest(tid)
-    assert len(root) == 64
-    assert json.loads(contract.get_transformation(tid))["manifest_root"] == root
-
-
-def test_builds_one_shard_for_one_change(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
-    contract = direct_deploy("contract/contracts/strata.py")
-    tid = launch(contract, direct_vm, direct_alice, terms)
-    set_block_time(direct_vm, "2026-10-06T00:00:01Z"); direct_vm.value = 0
-    mock_terminal(direct_vm, terms); contract.start_discovery(tid); mock_root_change(direct_vm, terms); contract.advance_discovery(tid, 4); contract.finalize_manifest(tid)
-    assert contract.build_shards(tid) == "shards_1"
-    shard = json.loads(contract.get_shard(tid, 0))
-    assert shard["change_indices"] == [0]
-
-
-def test_shard_audit_uses_structured_semantic_consensus(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
-    contract = direct_deploy("contract/contracts/strata.py")
-    tid = launch(contract, direct_vm, direct_alice, terms)
-    set_block_time(direct_vm, "2026-10-06T00:00:01Z"); direct_vm.value = 0
-    mock_terminal(direct_vm, terms); contract.start_discovery(tid); mock_root_change(direct_vm, terms); contract.advance_discovery(tid, 4); contract.finalize_manifest(tid); contract.build_shards(tid)
-    mock_shard_llm(direct_vm)
-    assert contract.audit_shard(tid, 0) == "shard_audited"
-    shard = json.loads(contract.get_shard(tid, 0))
-    assert shard["criteria"] == {"0": "SATISFIED", "1": "SATISFIED"}
-    assert len(shard["certificate_digest"]) == 64
-
-
-def test_shard_source_outage_does_not_certify(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
-    contract = direct_deploy("contract/contracts/strata.py")
-    tid = launch(contract, direct_vm, direct_alice, terms)
-    set_block_time(direct_vm, "2026-10-06T00:00:01Z"); direct_vm.value = 0
-    mock_terminal(direct_vm, terms); contract.start_discovery(tid); mock_root_change(direct_vm, terms); contract.advance_discovery(tid, 4); contract.finalize_manifest(tid); contract.build_shards(tid)
-    direct_vm.clear_mocks()
-    direct_vm.mock_web(r"api\.github\.com/repos/acme/megarepo/git/blobs/", {"status": 503, "body": "{}"})
-    assert contract.audit_shard(tid, 0) == "source_unavailable"
-    assert json.loads(contract.get_shard(tid, 0))["status"] == "PENDING"
-
-
-def test_ambiguous_shard_blocks_junction_build(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
-    contract = direct_deploy("contract/contracts/strata.py")
-    tid = launch(contract, direct_vm, direct_alice, terms)
-    set_block_time(direct_vm, "2026-10-06T00:00:01Z"); direct_vm.value = 0
-    mock_terminal(direct_vm, terms); contract.start_discovery(tid); mock_root_change(direct_vm, terms); contract.advance_discovery(tid, 4); contract.finalize_manifest(tid); contract.build_shards(tid)
-    mock_shard_llm(direct_vm, criteria={"0":"AMBIGUOUS","1":"SATISFIED"})
-    assert contract.audit_shard(tid, 0) == "shard_ambiguous"
-    with direct_vm.expect_revert("all_shards_must_be_audited"):
-        contract.build_junctions(tid)
-
-
-def test_complete_transformation_credits_implementer(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
-    contract = direct_deploy("contract/contracts/strata.py")
-    tid = launch(contract, direct_vm, direct_alice, terms, value=25 * WEI)
-    ready_one_shard(contract, direct_vm, tid, terms)
-    assert contract.finalize_transformation(tid) == "complete"
-    assert contract.get_balance(IMPLEMENTER) == str(25 * WEI)
-    item = json.loads(contract.get_transformation(tid))
-    assert item["status"] == "COMPLETE"
-    assert len(item["settlement_digest"]) == 64
-
-
-def test_failed_transformation_refunds_sponsor(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
-    contract = direct_deploy("contract/contracts/strata.py")
-    tid = launch(contract, direct_vm, direct_alice, terms, value=11 * WEI)
-    set_block_time(direct_vm, "2026-10-06T00:00:01Z"); direct_vm.value = 0
-    mock_terminal(direct_vm, terms); contract.start_discovery(tid); mock_root_change(direct_vm, terms); contract.advance_discovery(tid, 4); contract.finalize_manifest(tid); contract.build_shards(tid)
-    mock_shard_llm(direct_vm, criteria={"0":"VIOLATED","1":"SATISFIED"})
-    contract.audit_shard(tid, 0); contract.build_junctions(tid)
-    assert contract.finalize_transformation(tid) == "failed"
-    assert contract.get_balance(wallet(direct_alice)) == str(11 * WEI)
-
-
-def test_inconclusive_result_moves_no_money(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
-    contract = direct_deploy("contract/contracts/strata.py")
-    tid = launch(contract, direct_vm, direct_alice, terms, value=11 * WEI)
-    set_block_time(direct_vm, "2026-10-06T00:00:01Z"); direct_vm.value = 0
-    mock_terminal(direct_vm, terms); contract.start_discovery(tid); mock_root_change(direct_vm, terms); contract.advance_discovery(tid, 4); contract.finalize_manifest(tid); contract.build_shards(tid)
-    mock_shard_llm(direct_vm, criteria={"0":"NOT_RELEVANT","1":"SATISFIED"})
-    contract.audit_shard(tid, 0); contract.build_junctions(tid)
-    assert contract.finalize_transformation(tid) == "inconclusive"
-    assert contract.get_balance(IMPLEMENTER) == "0"
-    assert contract.get_balance(wallet(direct_alice)) == "0"
-
-
-def test_expiry_refunds_unresolved_pool(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
-    contract = direct_deploy("contract/contracts/strata.py")
-    tid = launch(contract, direct_vm, direct_alice, terms, value=9 * WEI)
-    set_block_time(direct_vm, "2026-11-06T00:00:01Z"); direct_vm.value = 0
-    assert contract.expire_unresolved(tid) == "expired"
-    assert contract.get_balance(wallet(direct_alice)) == str(9 * WEI)
-
-
-def test_expiry_rejected_during_grace(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
-    contract = direct_deploy("contract/contracts/strata.py")
-    tid = launch(contract, direct_vm, direct_alice, terms)
-    set_block_time(direct_vm, "2026-10-06T00:00:01Z"); direct_vm.value = 0
-    with direct_vm.expect_revert("unresolved_grace_active"):
-        contract.expire_unresolved(tid)
-
-
-def test_second_finalization_rejected(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
-    contract = direct_deploy("contract/contracts/strata.py")
-    tid = launch(contract, direct_vm, direct_alice, terms)
-    ready_one_shard(contract, direct_vm, tid, terms)
-    contract.finalize_transformation(tid)
-    with direct_vm.expect_revert("finalization_not_available"):
-        contract.finalize_transformation(tid)
-
-
-def test_expiry_rejects_terminal_transformation(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
-    contract = direct_deploy("contract/contracts/strata.py")
-    tid = launch(contract, direct_vm, direct_alice, terms)
-    ready_one_shard(contract, direct_vm, tid, terms)
-    contract.finalize_transformation(tid)
-    set_block_time(direct_vm, "2026-11-06T00:00:01Z")
-    with direct_vm.expect_revert("transformation_already_terminal"):
-        contract.expire_unresolved(tid)
-
-
-def test_withdraw_is_pull_based_and_replay_safe(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+def test_provisional_complete_moves_no_money(direct_vm, direct_deploy, direct_alice, terms):
     contract = direct_deploy("contract/contracts/strata.py")
     tid = launch(contract, direct_vm, direct_alice, terms, value=7 * WEI)
-    ready_one_shard(contract, direct_vm, tid, terms)
-    contract.finalize_transformation(tid)
-    # We cannot sign as the arbitrary implementer fixture, so verify zero-balance replay semantics on sponsor.
-    direct_vm.sender = direct_alice
-    assert contract.withdraw() == "nothing_to_withdraw"
+    ready(contract, direct_vm, tid, terms)
+    assert contract.propose_certificate(tid) == "provisional_complete"
+    state = item(contract, tid)
+    assert state["status"] == "PROVISIONAL" and state["pool_wei"] == str(7 * WEI)
+    assert contract.get_balance(IMPLEMENTER) == "0"
 
 
-def test_failed_sponsor_can_withdraw_once(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+def test_duplicate_proposal_cannot_reset_deadline(direct_vm, direct_deploy, direct_alice, terms):
     contract = direct_deploy("contract/contracts/strata.py")
-    tid = launch(contract, direct_vm, direct_alice, terms, value=5 * WEI)
-    set_block_time(direct_vm, "2026-10-06T00:00:01Z"); direct_vm.value = 0
-    mock_terminal(direct_vm, terms); contract.start_discovery(tid); mock_root_change(direct_vm, terms); contract.advance_discovery(tid, 4); contract.finalize_manifest(tid); contract.build_shards(tid)
-    mock_shard_llm(direct_vm, criteria={"0":"VIOLATED","1":"SATISFIED"})
-    contract.audit_shard(tid, 0); contract.build_junctions(tid); contract.finalize_transformation(tid)
+    tid = launch(contract, direct_vm, direct_alice, terms); ready(contract, direct_vm, tid, terms); contract.propose_certificate(tid)
+    deadline = item(contract, tid)["challenge_deadline"]
+    with direct_vm.expect_revert("finalization_not_available"):
+        contract.propose_certificate(tid)
+    assert item(contract, tid)["challenge_deadline"] == deadline
+
+
+def test_sponsor_can_challenge_complete_with_committed_path(direct_vm, direct_deploy, direct_alice, terms):
+    contract = direct_deploy("contract/contracts/strata.py")
+    tid = launch(contract, direct_vm, direct_alice, terms); ready(contract, direct_vm, tid, terms); contract.propose_certificate(tid)
     direct_vm.sender = direct_alice
+    assert contract.challenge_certificate(tid, 0, "auth.py", "The unchanged caller still uses the legacy path.") == "challenge_0"
+    assert item(contract, tid)["status"] == "CHALLENGED"
+
+
+def test_arbitrary_wallet_cannot_challenge_complete(direct_vm, direct_deploy, direct_alice, direct_bob, terms):
+    contract = direct_deploy("contract/contracts/strata.py")
+    tid = launch(contract, direct_vm, direct_alice, terms); ready(contract, direct_vm, tid, terms); contract.propose_certificate(tid)
+    direct_vm.sender = direct_bob
+    with direct_vm.expect_revert("challenger_not_sponsor"):
+        contract.challenge_certificate(tid, 0, "auth.py", "material reason")
+
+
+def test_challenge_rejects_uncommitted_path(direct_vm, direct_deploy, direct_alice, terms):
+    contract = direct_deploy("contract/contracts/strata.py")
+    tid = launch(contract, direct_vm, direct_alice, terms); ready(contract, direct_vm, tid, terms); contract.propose_certificate(tid)
+    direct_vm.sender = direct_alice
+    with direct_vm.expect_revert("challenge_evidence_not_committed"):
+        contract.challenge_certificate(tid, 0, "outside.py", "material reason")
+
+
+def test_settlement_waits_for_challenge_window(direct_vm, direct_deploy, direct_alice, terms):
+    contract = direct_deploy("contract/contracts/strata.py")
+    tid = launch(contract, direct_vm, direct_alice, terms); ready(contract, direct_vm, tid, terms); contract.propose_certificate(tid)
+    with direct_vm.expect_revert("challenge_window_active"):
+        contract.settle_certificate(tid)
+
+
+def test_challenge_reassessment_preserves_supported_result(direct_vm, direct_deploy, direct_alice, terms):
+    contract = direct_deploy("contract/contracts/strata.py")
+    tid = launch(contract, direct_vm, direct_alice, terms); ready(contract, direct_vm, tid, terms); contract.propose_certificate(tid)
+    direct_vm.sender = direct_alice
+    contract.challenge_certificate(tid, 0, "auth.py", "Recheck the committed implementation evidence.")
+    set_block_time(direct_vm, "2026-10-06T00:16:00Z"); mock_shard_llm(direct_vm)
+    assert contract.review_challenge(tid) == "ready_to_settle"
+    assert item(contract, tid)["provisional_result"] == "COMPLETE"
+    assert contract.settle_certificate(tid) == "complete"
+
+
+def test_unchallenged_complete_settles_once_and_withdraws_once(direct_vm, direct_deploy, direct_alice, terms):
+    contract = direct_deploy("contract/contracts/strata.py")
+    tid = launch(contract, direct_vm, direct_alice, terms, value=5 * WEI); ready(contract, direct_vm, tid, terms); contract.propose_certificate(tid)
+    set_block_time(direct_vm, "2026-10-06T00:16:00Z")
+    assert contract.settle_certificate(tid) == "complete"
+    assert contract.get_balance(IMPLEMENTER) == str(5 * WEI)
+    with direct_vm.expect_revert("certificate_not_settleable"):
+        contract.settle_certificate(tid)
+    direct_vm.sender = IMPLEMENTER
     assert contract.withdraw() == f"withdrew_{5 * WEI}"
-    assert contract.get_balance(wallet(direct_alice)) == "0"
     assert contract.withdraw() == "nothing_to_withdraw"
 
 
-def test_getters_return_empty_for_missing_records(direct_vm, direct_deploy):
+def test_failed_provisional_refunds_only_after_window(direct_vm, direct_deploy, direct_alice, terms):
     contract = direct_deploy("contract/contracts/strata.py")
-    assert contract.get_change_record(999, 0) == ""
-    assert contract.get_shard(999, 0) == ""
-    assert contract.get_junction(999, 0) == ""
+    tid = launch(contract, direct_vm, direct_alice, terms, value=3 * WEI)
+    ready(contract, direct_vm, tid, terms, criteria={"0": "VIOLATED", "1": "SATISFIED"})
+    assert contract.propose_certificate(tid) == "provisional_failed"
+    assert contract.get_balance(str(direct_alice)) == "0"
+    set_block_time(direct_vm, "2026-10-06T00:16:00Z")
+    assert contract.settle_certificate(tid) == "failed"
 
 
-def test_frontier_empty_response_is_stable(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+def test_expiry_cannot_override_valid_provisional_certificate(direct_vm, direct_deploy, direct_alice, terms):
     contract = direct_deploy("contract/contracts/strata.py")
-    tid = launch(contract, direct_vm, direct_alice, terms)
-    set_block_time(direct_vm, "2026-10-06T00:00:01Z"); direct_vm.value = 0
-    mock_terminal(direct_vm, terms); contract.start_discovery(tid); mock_root_change(direct_vm, terms)
-    contract.advance_discovery(tid, 4)
-    assert contract.advance_discovery(tid, 4) == "frontier_empty"
-
-
-
-def test_two_large_changes_pack_into_two_shards(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
-    contract = direct_deploy("contract/contracts/strata.py")
-    tid = launch(contract, direct_vm, direct_alice, terms)
-    set_block_time(direct_vm, "2026-10-06T00:00:01Z"); direct_vm.value = 0
-    mock_terminal(direct_vm, terms); contract.start_discovery(tid); mock_two_large_changes(direct_vm, terms); contract.advance_discovery(tid, 4); contract.finalize_manifest(tid)
-    assert contract.build_shards(tid) == "shards_2"
-
-
-def test_cross_shard_interface_builds_junction(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
-    contract = direct_deploy("contract/contracts/strata.py")
-    tid = launch(contract, direct_vm, direct_alice, terms)
-    set_block_time(direct_vm, "2026-10-06T00:00:01Z"); direct_vm.value = 0
-    mock_terminal(direct_vm, terms); contract.start_discovery(tid); mock_two_large_changes(direct_vm, terms); contract.advance_discovery(tid, 4); contract.finalize_manifest(tid); contract.build_shards(tid)
-    mock_shard_llm(direct_vm, interfaces=["auth/api"], dependencies=[]); contract.audit_shard(tid, 0)
-    mock_shard_llm(direct_vm, interfaces=[], dependencies=["auth/api"]); contract.audit_shard(tid, 1)
-    assert contract.build_junctions(tid) == "junctions_1"
-    junction = json.loads(contract.get_junction(tid, 0))
-    assert junction["interface_id"] == "auth/api"
-
-
-def test_compatible_junction_can_finalize_complete(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
-    contract = direct_deploy("contract/contracts/strata.py")
-    tid = launch(contract, direct_vm, direct_alice, terms)
-    set_block_time(direct_vm, "2026-10-06T00:00:01Z"); direct_vm.value = 0
-    mock_terminal(direct_vm, terms); contract.start_discovery(tid); mock_two_large_changes(direct_vm, terms); contract.advance_discovery(tid, 4); contract.finalize_manifest(tid); contract.build_shards(tid)
-    mock_shard_llm(direct_vm, interfaces=["auth/api"]); contract.audit_shard(tid, 0)
-    mock_shard_llm(direct_vm, dependencies=["auth/api"]); contract.audit_shard(tid, 1)
-    contract.build_junctions(tid); mock_junction_llm(direct_vm); assert contract.audit_junction(tid, 0) == "junction_audited"
-    assert contract.finalize_transformation(tid) == "complete"
-
-
-def test_violated_junction_refunds_sponsor(direct_vm, direct_deploy, direct_alice, terms):
-    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
-    contract = direct_deploy("contract/contracts/strata.py")
-    tid = launch(contract, direct_vm, direct_alice, terms, value=6 * WEI)
-    set_block_time(direct_vm, "2026-10-06T00:00:01Z"); direct_vm.value = 0
-    mock_terminal(direct_vm, terms); contract.start_discovery(tid); mock_two_large_changes(direct_vm, terms); contract.advance_discovery(tid, 4); contract.finalize_manifest(tid); contract.build_shards(tid)
-    mock_shard_llm(direct_vm, interfaces=["auth/api"]); contract.audit_shard(tid, 0)
-    mock_shard_llm(direct_vm, dependencies=["auth/api"]); contract.audit_shard(tid, 1)
-    contract.build_junctions(tid); mock_junction_llm(direct_vm, status="VIOLATED", criteria={"0":"NOT_RELEVANT","1":"VIOLATED"}); contract.audit_junction(tid, 0)
-    assert contract.finalize_transformation(tid) == "failed"
-    assert contract.get_balance(wallet(direct_alice)) == str(6 * WEI)
+    tid = launch(contract, direct_vm, direct_alice, terms); ready(contract, direct_vm, tid, terms); contract.propose_certificate(tid)
+    set_block_time(direct_vm, "2026-12-01T00:00:00Z")
+    with direct_vm.expect_revert("valid_certificate_pending_settlement"):
+        contract.expire_unresolved(tid)

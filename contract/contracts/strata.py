@@ -42,10 +42,53 @@ MAX_SEMANTIC_IDS = 8
 MAX_SEMANTIC_ID_CHARS = 80
 MAX_RATIONALE_CHARS = 1600
 MAX_SOURCE_TEXT_CHARS = 52000
+MAX_SCOPE_ENTRIES = 5
+MAX_SCOPE_FILES = 64
+MAX_SCOPE_FRONTIER = 256
+MAX_SCOPE_BATCH = 4
+MAX_DEPENDENCY_EDGES = 128
+MAX_IMPORTS_PER_FILE = 32
+MAX_CHALLENGES = 8
+MAX_CHALLENGE_REASON_CHARS = 600
+CHALLENGE_WINDOW_SECONDS = 15 * 60
 
 CRITERION_RESULTS = {"SATISFIED", "VIOLATED", "AMBIGUOUS", "NOT_RELEVANT"}
 JUNCTION_RESULTS = {"COMPATIBLE", "VIOLATED", "AMBIGUOUS"}
 TERMINAL_STATES = {"COMPLETE", "FAILED", "EXPIRED"}
+
+
+def _normalise_scope(scope_json: str):
+    value = _safe_json(scope_json)
+    if not isinstance(value, list) or not (1 <= len(value) <= MAX_SCOPE_ENTRIES):
+        raise gl.vm.UserError("invalid_scope")
+    cleaned = []
+    for raw in value:
+        path = str(raw or "").strip().replace("\\", "/").rstrip("/")
+        if (not path or path.startswith("/") or path.startswith("http:") or path.startswith("https:")
+                or "\x00" in path or "*" in path or "?" in path
+                or any(part in {"", ".", ".."} for part in path.split("/"))):
+            raise gl.vm.UserError("invalid_scope_path")
+        if path in cleaned:
+            raise gl.vm.UserError("duplicate_scope_path")
+        cleaned.append(path)
+    cleaned.sort()
+    for index, path in enumerate(cleaned):
+        for other in cleaned[index + 1:]:
+            if other.startswith(path + "/"):
+                raise gl.vm.UserError("ambiguous_scope_paths")
+    return cleaned
+
+
+def _scope_relation(path: str, scopes):
+    if any(path == scope or path.startswith(scope + "/") for scope in scopes):
+        return "INCLUDE"
+    if any(scope.startswith(path + "/") for scope in scopes):
+        return "DESCEND"
+    return "OUTSIDE"
+
+
+def _git_blob_sha(raw: bytes) -> str:
+    return hashlib.sha1(b"blob " + str(len(raw)).encode("ascii") + b"\0" + raw).hexdigest()
 
 
 def _canonical_json(value) -> str:
@@ -256,6 +299,71 @@ def _fetch_terminal_snapshot(context_json: str) -> str:
     return _canonical_json(result)
 
 
+def _fetch_checkpoint_identity(context_json: str) -> str:
+    context = json.loads(context_json)
+    repo = context["repo"]
+    ref = context["target_ref"]
+    baseline = context["baseline_commit"].lower()
+    checkpoint = context["checkpoint_commit"].lower()
+    commit, reason = _read_json_url(f"https://api.github.com/repos/{repo}/commits/{checkpoint}")
+    if commit is None:
+        return _canonical_json({"status": "SOURCE_UNAVAILABLE", "reason": f"checkpoint:{reason}"})
+    tree = commit.get("commit", {}).get("tree") if isinstance(commit, dict) and isinstance(commit.get("commit"), dict) else None
+    tree_sha = str((tree.get("sha") if isinstance(tree, dict) else "") or "").lower()
+    if not isinstance(commit, dict) or str(commit.get("sha") or "").lower() != checkpoint or not _sha_ok(tree_sha):
+        return _canonical_json({"status": "INVALID", "reason": "checkpoint_identity_mismatch"})
+    branch, reason = _read_json_url(f"https://api.github.com/repos/{repo}/branches/{quote(ref, safe='')}")
+    if branch is None:
+        return _canonical_json({"status": "SOURCE_UNAVAILABLE", "reason": f"branch:{reason}"})
+    tip = str(((branch.get("commit") if isinstance(branch, dict) else {}) or {}).get("sha") or "").lower()
+    if not isinstance(branch, dict) or str(branch.get("name") or "") != ref or not _sha_ok(tip):
+        return _canonical_json({"status": "INVALID", "reason": "target_ref_identity_mismatch"})
+    base_compare, reason = _read_json_url(f"https://api.github.com/repos/{repo}/compare/{baseline}...{checkpoint}")
+    if base_compare is None:
+        return _canonical_json({"status": "SOURCE_UNAVAILABLE", "reason": f"baseline_compare:{reason}"})
+    status = str(base_compare.get("status") or "").lower() if isinstance(base_compare, dict) else ""
+    merge = base_compare.get("merge_base_commit") if isinstance(base_compare, dict) else None
+    if (not isinstance(base_compare, dict) or not _compare_identity_ok(base_compare, baseline, checkpoint, status)
+            or status not in {"ahead", "identical"}
+            or str((merge.get("sha") if isinstance(merge, dict) else "") or "").lower() != baseline):
+        return _canonical_json({"status": "INVALID", "reason": "checkpoint_not_descended_from_baseline"})
+    reach_compare, reason = _read_json_url(f"https://api.github.com/repos/{repo}/compare/{checkpoint}...{tip}")
+    if reach_compare is None:
+        return _canonical_json({"status": "SOURCE_UNAVAILABLE", "reason": f"reachability_compare:{reason}"})
+    reach_status = str(reach_compare.get("status") or "").lower() if isinstance(reach_compare, dict) else ""
+    reach_merge = reach_compare.get("merge_base_commit") if isinstance(reach_compare, dict) else None
+    if (not isinstance(reach_compare, dict) or not _compare_identity_ok(reach_compare, checkpoint, tip, reach_status)
+            or reach_status not in {"ahead", "identical"}
+            or str((reach_merge.get("sha") if isinstance(reach_merge, dict) else "") or "").lower() != checkpoint):
+        return _canonical_json({"status": "INVALID", "reason": "checkpoint_not_reachable_from_target"})
+    result = {"status": "OK", "checkpoint_commit": checkpoint, "checkpoint_tree": tree_sha,
+              "observed_target_tip": tip}
+    result["checkpoint_source_digest"] = _digest(result)
+    return _canonical_json(result)
+
+
+def _fetch_scope_identity(context_json: str) -> str:
+    context = json.loads(context_json)
+    verified = []
+    for path in context["scope"]:
+        body, reason = _read_json_url(
+            f"https://api.github.com/repos/{context['repo']}/contents/{quote(path, safe='/')}?ref={context['baseline_commit']}")
+        if body is None:
+            return _canonical_json({"status": "SOURCE_UNAVAILABLE", "reason": f"scope:{path}:{reason}"})
+        if isinstance(body, dict):
+            if str(body.get("path") or "") != path or str(body.get("type") or "") not in {"file", "dir", "symlink", "submodule"}:
+                return _canonical_json({"status": "INVALID", "reason": "scope_identity_mismatch"})
+            identity = str(body.get("sha") or "").lower()
+        elif isinstance(body, list) and body:
+            identity = _digest(sorted(str(entry.get("path") or "") for entry in body if isinstance(entry, dict)))
+        else:
+            return _canonical_json({"status": "INVALID", "reason": "scope_path_not_found"})
+        if not identity:
+            return _canonical_json({"status": "INVALID", "reason": "scope_identity_missing"})
+        verified.append({"path": path, "identity": identity})
+    return _canonical_json({"status": "OK", "scope_identity_digest": _digest(verified)})
+
+
 def _tree_entries(repo: str, tree_sha: str):
     if not tree_sha:
         return [], ""
@@ -353,6 +461,8 @@ def _decode_blob(body, expected_sha: str, expected_size: int):
         return None, "blob_decode_failed"
     if len(raw) != expected_size:
         return None, "blob_size_mismatch"
+    if _git_blob_sha(raw) != expected_sha:
+        return None, "blob_content_identity_mismatch"
     if b"\x00" in raw:
         return None, "binary_blob"
     try:
@@ -382,11 +492,11 @@ def _fetch_shard_source(context_json: str) -> str:
     for change in changes:
         old_text, reason = _fetch_blob(repo, change.get("old_sha", ""), int(change.get("old_size", 0)))
         if old_text is None:
-            deterministic = reason in {"single_blob_budget_exceeded", "malformed_blob", "blob_identity_mismatch", "invalid_blob_size", "blob_size_mismatch", "unsupported_blob_encoding", "blob_decode_failed", "binary_blob", "non_utf8_blob"}
+            deterministic = reason in {"single_blob_budget_exceeded", "malformed_blob", "blob_identity_mismatch", "blob_content_identity_mismatch", "invalid_blob_size", "blob_size_mismatch", "unsupported_blob_encoding", "blob_decode_failed", "binary_blob", "non_utf8_blob"}
             return _canonical_json({"status": "INSUFFICIENT_EVIDENCE" if deterministic else "SOURCE_UNAVAILABLE", "reason": f"old_blob:{reason}"})
         new_text, reason = _fetch_blob(repo, change.get("new_sha", ""), int(change.get("new_size", 0)))
         if new_text is None:
-            deterministic = reason in {"single_blob_budget_exceeded", "malformed_blob", "blob_identity_mismatch", "invalid_blob_size", "blob_size_mismatch", "unsupported_blob_encoding", "blob_decode_failed", "binary_blob", "non_utf8_blob"}
+            deterministic = reason in {"single_blob_budget_exceeded", "malformed_blob", "blob_identity_mismatch", "blob_content_identity_mismatch", "invalid_blob_size", "blob_size_mismatch", "unsupported_blob_encoding", "blob_decode_failed", "binary_blob", "non_utf8_blob"}
             return _canonical_json({"status": "INSUFFICIENT_EVIDENCE" if deterministic else "SOURCE_UNAVAILABLE", "reason": f"new_blob:{reason}"})
         total_chars += len(old_text) + len(new_text)
         if total_chars > MAX_SOURCE_TEXT_CHARS:
@@ -546,6 +656,69 @@ Return ONLY JSON with exactly:
     return gl.nondet.exec_prompt(prompt, response_format="json")
 
 
+def _extract_imports(path: str, source: str):
+    """Bounded line parser for static Python and ECMAScript module references."""
+    suffix = path.rsplit(".", 1)[-1].lower() if "." in path else ""
+    imports = []
+    for raw_line in source.splitlines():
+        line = raw_line.strip()
+        reference = ""
+        classification = "STATIC"
+        if suffix == "py":
+            if line.startswith("from ") and " import " in line:
+                reference = line[5:line.index(" import ")].strip()
+            elif line.startswith("import "):
+                reference = line[7:].split(",", 1)[0].split(" as ", 1)[0].strip()
+        elif suffix in {"js", "jsx", "ts", "tsx", "mjs", "cjs"}:
+            marker = " from " if " from " in line and (line.startswith("import ") or line.startswith("export ")) else ""
+            candidate = line.split(marker, 1)[1].strip() if marker else line[7:].strip() if line.startswith("import ") else ""
+            if candidate.startswith("("):
+                classification = "DYNAMIC_UNSUPPORTED"
+                reference = candidate
+            elif candidate and candidate[0] in {"'", '"'}:
+                quote_char = candidate[0]
+                end = candidate.find(quote_char, 1)
+                reference = candidate[1:end] if end > 1 else ""
+            elif "require(" in line:
+                classification = "COMMONJS"
+                candidate = line.split("require(", 1)[1].strip()
+                if candidate and candidate[0] in {"'", '"'}:
+                    end = candidate.find(candidate[0], 1)
+                    reference = candidate[1:end] if end > 1 else ""
+                else:
+                    classification = "DYNAMIC_UNSUPPORTED"
+                    reference = candidate
+        if reference:
+            imports.append({"reference": reference[:240], "classification": classification})
+            if len(imports) > MAX_IMPORTS_PER_FILE:
+                return None, "import_limit_exceeded"
+    return imports, ""
+
+
+def _resolve_import(consumer: str, reference: str, paths):
+    is_python = consumer.endswith(".py")
+    if not reference.startswith(".") and not is_python:
+        return "", "EXTERNAL"
+    base = consumer.split("/")[:-1] if reference.startswith(".") else []
+    parts = reference.replace(".", "./", 1).split("/") if reference.startswith(".") else reference.split(".")
+    for part in parts:
+        if part in {"", "."}:
+            continue
+        if part == "..":
+            if not base:
+                return "", "UNRESOLVED_LOCAL"
+            base.pop()
+        else:
+            base.append(part)
+    stem = "/".join(base)
+    candidates = [stem, stem + ".py", stem + ".js", stem + ".jsx", stem + ".ts", stem + ".tsx",
+                  stem + "/__init__.py", stem + "/index.js", stem + "/index.jsx", stem + "/index.ts", stem + "/index.tsx"]
+    found = sorted(candidate for candidate in candidates if candidate in paths)
+    if len(found) == 1:
+        return found[0], "LOCAL_RESOLVED"
+    return ("", "EXTERNAL") if is_python and not reference.startswith(".") else ("", "UNRESOLVED_LOCAL")
+
+
 class Strata(gl.Contract):
     transformations: TreeMap[u256, str]
     sponsor_totals: TreeMap[str, str]
@@ -553,6 +726,10 @@ class Strata(gl.Contract):
     change_records: TreeMap[str, str]
     shards: TreeMap[str, str]
     junctions: TreeMap[str, str]
+    scope_tasks: TreeMap[str, str]
+    evidence_records: TreeMap[str, str]
+    dependency_edges: TreeMap[str, str]
+    challenges: TreeMap[str, str]
     balances: TreeMap[str, str]
     next_transformation_id: u256
 
@@ -599,6 +776,7 @@ class Strata(gl.Contract):
         title: str,
         objective: str,
         criteria_json: str,
+        scope_json: str,
         implementer_wallet: str,
         close_at_unix: int,
     ) -> u256:
@@ -621,6 +799,7 @@ class Strata(gl.Contract):
         if not _address_ok(implementer_wallet):
             raise gl.vm.UserError("invalid_implementer")
         criteria = _normalise_criteria(criteria_json)
+        scope = _normalise_scope(scope_json)
         now = _now_unix()
         close_at_unix = int(close_at_unix)
         if close_at_unix < now + MIN_WINDOW_SECONDS or close_at_unix > now + MAX_WINDOW_SECONDS:
@@ -637,6 +816,14 @@ class Strata(gl.Contract):
             raise gl.vm.UserError("baseline_source_unavailable")
         if identity.get("status") != "OK":
             raise gl.vm.UserError(str(identity.get("reason") or "baseline_not_verified"))
+        scope_context = _canonical_json({"repo": repo_slug, "baseline_commit": baseline_commit, "scope": scope})
+        def fetch_scope_identity():
+            return _fetch_scope_identity(scope_context)
+        scope_identity = json.loads(gl.eq_principle.strict_eq(fetch_scope_identity))
+        if scope_identity.get("status") == "SOURCE_UNAVAILABLE":
+            raise gl.vm.UserError("scope_source_unavailable")
+        if scope_identity.get("status") != "OK":
+            raise gl.vm.UserError(str(scope_identity.get("reason") or "scope_not_verified"))
 
         transformation_id = self.next_transformation_id
         self.next_transformation_id = u256(int(self.next_transformation_id) + 1)
@@ -649,6 +836,7 @@ class Strata(gl.Contract):
             "title": title,
             "objective": objective,
             "criteria": criteria,
+            "scope": scope,
             "implementer_wallet": implementer_wallet,
             "close_at": close_at_unix,
         }
@@ -662,6 +850,11 @@ class Strata(gl.Contract):
             "pool_wei": str(amount),
             "total_funded_wei": str(amount),
             "terms_digest": _digest(terms),
+            "scope_root": _digest({"scope": scope, "baseline_scope_identity": scope_identity["scope_identity_digest"]}),
+            "checkpoint_commit": "",
+            "checkpoint_tree": "",
+            "checkpoint_submitted_at": 0,
+            "checkpoint_digest": "",
             "terminal_commit": "",
             "terminal_tree": "",
             "terminal_snapshot_digest": "",
@@ -669,6 +862,14 @@ class Strata(gl.Contract):
             "frontier_tail": 0,
             "change_count": 0,
             "manifest_root": "",
+            "scope_frontier_head": 0,
+            "scope_frontier_tail": 0,
+            "scope_file_count": 0,
+            "evidence_processed_count": 0,
+            "evidence_coverage_root": "",
+            "dependency_count": 0,
+            "dependency_graph_root": "",
+            "coverage_status": "PENDING",
             "shard_count": 0,
             "junction_count": 0,
             "certificate_root": "",
@@ -677,6 +878,11 @@ class Strata(gl.Contract):
             "inconclusive_at": 0,
             "settlement_digest": "",
             "settlement": None,
+            "provisional_result": "",
+            "provisional_at": 0,
+            "challenge_deadline": 0,
+            "challenge_count": 0,
+            "reassessment_digest": "",
         }
         self.transformations[transformation_id] = json.dumps(item, sort_keys=True)
         self.sponsor_totals[f"{int(transformation_id)}:{sponsor}"] = str(amount)
@@ -706,23 +912,50 @@ class Strata(gl.Contract):
         return f"funded_{amount}"
 
     @gl.public.write
+    def submit_delivery_checkpoint(self, transformation_id: u256, commit_sha: str) -> str:
+        item = self._load(transformation_id)
+        if item["status"] != "OPEN":
+            raise gl.vm.UserError("checkpoint_not_open")
+        now = _now_unix()
+        if now >= int(item["close_at"]):
+            raise gl.vm.UserError("checkpoint_deadline_passed")
+        if _wallet(gl.message.sender_address) != item["implementer_wallet"]:
+            raise gl.vm.UserError("checkpoint_not_implementer")
+        commit_sha = commit_sha.strip().lower()
+        if not _sha_ok(commit_sha):
+            raise gl.vm.UserError("invalid_checkpoint_commit")
+        context = _canonical_json({"repo": item["repo"], "target_ref": item["target_ref"],
+                                   "baseline_commit": item["baseline_commit"], "checkpoint_commit": commit_sha})
+        def fetch_checkpoint():
+            return _fetch_checkpoint_identity(context)
+        identity = json.loads(gl.eq_principle.strict_eq(fetch_checkpoint))
+        if identity.get("status") == "SOURCE_UNAVAILABLE":
+            return "source_unavailable"
+        if identity.get("status") != "OK":
+            raise gl.vm.UserError(str(identity.get("reason") or "checkpoint_invalid"))
+        checkpoint = {"commit": identity["checkpoint_commit"], "tree": identity["checkpoint_tree"],
+                      "submitted_at": now, "source_digest": identity["checkpoint_source_digest"]}
+        item["checkpoint_commit"] = checkpoint["commit"]
+        item["checkpoint_tree"] = checkpoint["tree"]
+        item["checkpoint_submitted_at"] = now
+        item["checkpoint_digest"] = _digest(checkpoint)
+        self._save(transformation_id, item)
+        return "checkpoint_submitted"
+
+    @gl.public.write
     def start_discovery(self, transformation_id: u256) -> str:
         item = self._load(transformation_id)
         if item["status"] != "OPEN":
             raise gl.vm.UserError("discovery_not_startable")
         if _now_unix() <= int(item["close_at"]):
             raise gl.vm.UserError("transformation_still_open")
-        context = _canonical_json({"repo": item["repo"], "target_ref": item["target_ref"], "baseline_commit": item["baseline_commit"]})
-        def fetch_terminal():
-            return _fetch_terminal_snapshot(context)
-        terminal = json.loads(gl.eq_principle.strict_eq(fetch_terminal))
-        if terminal.get("status") == "SOURCE_UNAVAILABLE":
-            return "source_unavailable"
-        if terminal.get("status") != "OK":
-            raise gl.vm.UserError(str(terminal.get("reason") or "terminal_invalid"))
-        item["terminal_commit"] = terminal["terminal_commit"]
-        item["terminal_tree"] = terminal["terminal_tree"]
-        item["terminal_snapshot_digest"] = terminal["terminal_snapshot_digest"]
+        if not item.get("checkpoint_digest"):
+            raise gl.vm.UserError("delivery_checkpoint_required")
+        item["terminal_commit"] = item["checkpoint_commit"]
+        item["terminal_tree"] = item["checkpoint_tree"]
+        item["terminal_snapshot_digest"] = _digest({"checkpoint_digest": item["checkpoint_digest"],
+                                                     "terminal_commit": item["checkpoint_commit"],
+                                                     "terminal_tree": item["checkpoint_tree"]})
         item["status"] = "DISCOVERING"
         item["frontier_head"] = 0
         item["frontier_tail"] = 1
@@ -829,11 +1062,177 @@ class Strata(gl.Contract):
         return manifest_root
 
     @gl.public.write
-    def build_shards(self, transformation_id: u256) -> str:
+    def start_scope_discovery(self, transformation_id: u256) -> str:
         item = self._load(transformation_id)
         if item["status"] != "MANIFEST_READY":
+            raise gl.vm.UserError("scope_discovery_not_startable")
+        item["status"] = "SCOPE_DISCOVERING"
+        item["scope_frontier_head"] = 0
+        item["scope_frontier_tail"] = 1
+        self.scope_tasks[f"{int(transformation_id)}:0"] = _canonical_json({
+            "path": "", "base_tree": item["baseline_tree"], "terminal_tree": item["terminal_tree"]})
+        self._save(transformation_id, item)
+        return "scope_discovery_started"
+
+    @gl.public.write
+    def advance_scope_discovery(self, transformation_id: u256, requested_tasks: int) -> str:
+        item = self._load(transformation_id)
+        if item["status"] != "SCOPE_DISCOVERING":
+            raise gl.vm.UserError("scope_discovery_not_active")
+        head, tail = int(item["scope_frontier_head"]), int(item["scope_frontier_tail"])
+        count = min(max(1, min(int(requested_tasks), MAX_SCOPE_BATCH)), tail - head)
+        if count <= 0:
+            return "scope_frontier_empty"
+        fetched = []
+        for offset in range(count):
+            task = json.loads(self.scope_tasks[f"{int(transformation_id)}:{head + offset}"])
+            context = _canonical_json({"repo": item["repo"], **task})
+            def fetch_pair(ctx=context):
+                return _fetch_tree_pair(ctx)
+            pair = json.loads(gl.eq_principle.strict_eq(fetch_pair))
+            if pair.get("status") == "SOURCE_UNAVAILABLE":
+                return "source_unavailable"
+            if pair.get("status") != "OK":
+                raise gl.vm.UserError(str(pair.get("reason") or "scope_tree_invalid"))
+            fetched.append((task, pair))
+        file_count, next_tail = int(item["scope_file_count"]), tail
+        for task, pair in fetched:
+            prefix = task.get("path", "")
+            base = {entry["path"]: entry for entry in pair["base_entries"]}
+            delivery = {entry["path"]: entry for entry in pair["terminal_entries"]}
+            for name in sorted(set(base) | set(delivery)):
+                left, right = base.get(name), delivery.get(name)
+                path = f"{prefix}/{name}" if prefix else name
+                relation = _scope_relation(path, item["scope"])
+                if relation == "OUTSIDE":
+                    continue
+                left_type, right_type = left["type"] if left else "", right["type"] if right else ""
+                if left_type == "tree" or right_type == "tree":
+                    if left_type not in {"", "tree"} or right_type not in {"", "tree"}:
+                        raise gl.vm.UserError("unsupported_scoped_type_change")
+                    if next_tail >= MAX_SCOPE_FRONTIER:
+                        raise gl.vm.UserError("scope_frontier_limit_exceeded")
+                    self.scope_tasks[f"{int(transformation_id)}:{next_tail}"] = _canonical_json({
+                        "path": path, "base_tree": left["sha"] if left else "",
+                        "terminal_tree": right["sha"] if right else ""})
+                    next_tail += 1
+                elif relation == "INCLUDE":
+                    if file_count >= MAX_SCOPE_FILES:
+                        raise gl.vm.UserError("scope_file_limit_exceeded")
+                    record = {"index": file_count, "criterion_indices": list(range(len(item["criteria"]))),
+                              "path": path, "role": "SCOPED_SOURCE",
+                              "baseline_sha": left["sha"] if left else "", "delivery_sha": right["sha"] if right else "",
+                              "old_sha": left["sha"] if left else "", "new_sha": right["sha"] if right else "",
+                              "old_size": int(left.get("size", 0)) if left else 0,
+                              "new_size": int(right.get("size", 0)) if right else 0,
+                              "change_type": "UNCHANGED" if left and right and left["sha"] == right["sha"] else "MODIFIED" if left and right else "DELETED" if left else "ADDED",
+                              "source_digest": "", "dependency_refs": [], "coverage_status": "PENDING", "finding": {}}
+                    record["evidence_id"] = _digest({"transformation_id": int(transformation_id), "path": path,
+                                                     "baseline_sha": record["baseline_sha"], "delivery_sha": record["delivery_sha"]})
+                    self.evidence_records[f"{int(transformation_id)}:{file_count}"] = _canonical_json(record)
+                    file_count += 1
+        item["scope_frontier_head"] = head + count
+        item["scope_frontier_tail"] = next_tail
+        item["scope_file_count"] = file_count
+        self._save(transformation_id, item)
+        return f"scope_advanced_{count}"
+
+    @gl.public.write
+    def finalize_scope_discovery(self, transformation_id: u256) -> str:
+        item = self._load(transformation_id)
+        if item["status"] != "SCOPE_DISCOVERING" or int(item["scope_frontier_head"]) != int(item["scope_frontier_tail"]):
+            raise gl.vm.UserError("scope_not_finalizable")
+        paths = [json.loads(self.evidence_records[f"{int(transformation_id)}:{i}"])["path"] for i in range(int(item["scope_file_count"]))]
+        if not paths or any(not any(path == scope or path.startswith(scope + "/") for path in paths) for scope in item["scope"]):
+            raise gl.vm.UserError("scope_entry_not_found")
+        item["status"] = "EVIDENCE_PROCESSING"
+        self._save(transformation_id, item)
+        return f"scope_files_{len(paths)}"
+
+    @gl.public.write
+    def process_evidence(self, transformation_id: u256, requested_files: int) -> str:
+        item = self._load(transformation_id)
+        if item["status"] != "EVIDENCE_PROCESSING":
+            raise gl.vm.UserError("evidence_not_processable")
+        start = int(item["evidence_processed_count"])
+        count = min(max(1, min(int(requested_files), MAX_SCOPE_BATCH)), int(item["scope_file_count"]) - start)
+        processed = []
+        for index in range(start, start + count):
+            record = json.loads(self.evidence_records[f"{int(transformation_id)}:{index}"])
+            sha, size = record["delivery_sha"] or record["baseline_sha"], record["new_size"] or record["old_size"]
+            context = _canonical_json({"repo": item["repo"], "changes": [{"path": record["path"], "change_type": record["change_type"],
+                                      "old_sha": "", "new_sha": sha, "old_size": 0, "new_size": size}]})
+            def fetch_source(ctx=context):
+                return _fetch_shard_source(ctx)
+            source = json.loads(gl.eq_principle.strict_eq(fetch_source))
+            if source.get("status") == "SOURCE_UNAVAILABLE":
+                return "source_unavailable"
+            if source.get("status") != "OK":
+                record["coverage_status"] = "UNRESOLVED"
+                record["unresolved_gap"] = str(source.get("reason") or "source_unavailable")
+            else:
+                text = source["evidence"][0]["new_source"]
+                imports, reason = _extract_imports(record["path"], text)
+                record["source_digest"] = source["source_digest"]
+                record["imports"] = imports or []
+                record["coverage_status"] = "COMPLETE" if imports is not None else "UNRESOLVED"
+                record["unresolved_gap"] = reason
+            processed.append((index, record))
+        for index, record in processed:
+            self.evidence_records[f"{int(transformation_id)}:{index}"] = _canonical_json(record)
+        item["evidence_processed_count"] = start + count
+        self._save(transformation_id, item)
+        return f"evidence_processed_{count}"
+
+    @gl.public.write
+    def finalize_evidence(self, transformation_id: u256) -> str:
+        item = self._load(transformation_id)
+        total = int(item["scope_file_count"])
+        if item["status"] != "EVIDENCE_PROCESSING" or int(item["evidence_processed_count"]) != total:
+            raise gl.vm.UserError("evidence_not_finalizable")
+        records = [json.loads(self.evidence_records[f"{int(transformation_id)}:{i}"]) for i in range(total)]
+        paths = {record["path"] for record in records}
+        edges, edge_keys, unresolved = [], {}, False
+        for record in records:
+            refs = []
+            for imported in record.get("imports", []):
+                reference, classification = imported["reference"], imported["classification"]
+                provider, resolution = _resolve_import(record["path"], reference, paths)
+                material = reference.startswith(".") or classification == "DYNAMIC_UNSUPPORTED"
+                resolved = resolution in {"LOCAL_RESOLVED", "EXTERNAL"} and classification != "DYNAMIC_UNSUPPORTED"
+                edge = {"consumer_path": record["path"], "provider_path": provider, "reference": reference,
+                        "source_sha": record["delivery_sha"] or record["baseline_sha"], "evidence_id": record["evidence_id"],
+                        "classification": classification if classification != "STATIC" else resolution,
+                        "resolved": resolved, "semantic_required": bool(provider)}
+                if material and not resolved:
+                    unresolved = True
+                edge_key = _digest(edge)
+                if edge_key not in edge_keys:
+                    if len(edges) >= MAX_DEPENDENCY_EDGES:
+                        raise gl.vm.UserError("dependency_edge_limit_exceeded")
+                    edge_keys[edge_key] = len(edges); edges.append(edge)
+                refs.append(edge_keys[edge_key])
+            record["dependency_refs"] = refs
+            self.evidence_records[f"{int(transformation_id)}:{record['index']}"] = _canonical_json(record)
+        for index, edge in enumerate(edges):
+            edge["index"] = index
+            edge["edge_digest"] = _digest(edge)
+            self.dependency_edges[f"{int(transformation_id)}:{index}"] = _canonical_json(edge)
+        item["dependency_count"] = len(edges)
+        item["dependency_graph_root"] = _digest({"edges": edges})
+        committed_records = [json.loads(self.evidence_records[f"{int(transformation_id)}:{i}"]) for i in range(total)]
+        item["evidence_coverage_root"] = _digest({"records": committed_records, "dependency_graph_root": item["dependency_graph_root"]})
+        item["coverage_status"] = "UNRESOLVED" if unresolved or any(r["coverage_status"] != "COMPLETE" for r in records) else "COMPLETE"
+        item["status"] = "EVIDENCE_READY"
+        self._save(transformation_id, item)
+        return item["coverage_status"].lower()
+
+    @gl.public.write
+    def build_shards(self, transformation_id: u256) -> str:
+        item = self._load(transformation_id)
+        if item["status"] != "EVIDENCE_READY":
             raise gl.vm.UserError("shards_not_buildable")
-        changes = self._all_changes(transformation_id, item)
+        changes = [json.loads(self.evidence_records[f"{int(transformation_id)}:{i}"]) for i in range(int(item["scope_file_count"]))]
         shards = []
         current = []
         current_bytes = 0
@@ -852,7 +1251,7 @@ class Strata(gl.Contract):
         if len(shards) > MAX_SHARDS:
             raise gl.vm.UserError("shard_limit_exceeded")
         for index, change_indices in enumerate(shards):
-            shard = {"index": index, "change_indices": change_indices, "status": "PENDING", "source_digest": "", "certificate_digest": "", "criteria": {}, "interfaces_changed": [], "dependencies": [], "rationale": ""}
+            shard = {"index": index, "change_indices": change_indices, "evidence_indices": change_indices, "status": "PENDING", "source_digest": "", "certificate_digest": "", "criteria": {}, "interfaces_changed": [], "dependencies": [], "rationale": ""}
             self.shards[f"{int(transformation_id)}:{index}"] = _canonical_json(shard)
         item["shard_count"] = len(shards)
         item["status"] = "AUDITING" if shards else "READY_TO_FINALIZE"
@@ -860,7 +1259,7 @@ class Strata(gl.Contract):
         return f"shards_{len(shards)}"
 
     def _shard_changes(self, transformation_id: u256, shard):
-        return [json.loads(self.change_records[f"{int(transformation_id)}:{int(index)}"]) for index in shard["change_indices"]]
+        return [json.loads(self.evidence_records[f"{int(transformation_id)}:{int(index)}"]) for index in shard["evidence_indices"]]
 
     def _audit_shard_inner(self, transformation_id: u256, item, shard_index: int):
         key = f"{int(transformation_id)}:{shard_index}"
@@ -938,32 +1337,34 @@ class Strata(gl.Contract):
         item = self._load(transformation_id)
         if item["status"] != "AUDITING":
             raise gl.vm.UserError("junctions_not_buildable")
-        changed = {}
-        dependencies = {}
+        evidence_to_shard = {}
         for index in range(int(item["shard_count"])):
             shard = json.loads(self.shards[f"{int(transformation_id)}:{index}"])
             if shard["status"] != "AUDITED":
                 raise gl.vm.UserError("all_shards_must_be_audited")
-            for name in shard["interfaces_changed"]:
-                changed.setdefault(name, []).append(index)
-            for name in shard["dependencies"]:
-                dependencies.setdefault(name, []).append(index)
+            for evidence_index in shard["evidence_indices"]:
+                evidence_to_shard[int(evidence_index)] = index
+        path_to_index = {}
+        for evidence_index in range(int(item["scope_file_count"])):
+            evidence = json.loads(self.evidence_records[f"{int(transformation_id)}:{evidence_index}"])
+            path_to_index[evidence["path"]] = evidence_index
         pairs = []
         seen = set()
-        for identifier in sorted(set(changed.keys()) & set(dependencies.keys())):
-            for provider in changed[identifier]:
-                for consumer in dependencies[identifier]:
-                    if provider == consumer:
-                        continue
-                    key = f"{identifier}:{provider}:{consumer}"
-                    if key in seen:
-                        continue
-                    seen.add(key)
-                    pairs.append((identifier, provider, consumer))
+        for edge_index in range(int(item["dependency_count"])):
+            edge = json.loads(self.dependency_edges[f"{int(transformation_id)}:{edge_index}"])
+            if not edge["resolved"] or not edge["semantic_required"]:
+                continue
+            provider = evidence_to_shard[path_to_index[edge["provider_path"]]]
+            consumer = evidence_to_shard[path_to_index[edge["consumer_path"]]]
+            if provider == consumer:
+                continue
+            key = f"{edge_index}:{provider}:{consumer}"
+            if key not in seen:
+                seen.add(key); pairs.append((edge_index, edge["reference"], provider, consumer))
         if len(pairs) > MAX_JUNCTIONS:
             raise gl.vm.UserError("junction_limit_exceeded")
-        for index, (identifier, provider, consumer) in enumerate(pairs):
-            junction = {"index": index, "interface_id": identifier, "provider_shard": provider, "consumer_shard": consumer, "status": "PENDING", "criteria": {}, "rationale": "", "certificate_digest": ""}
+        for index, (edge_index, identifier, provider, consumer) in enumerate(pairs):
+            junction = {"index": index, "dependency_edge_index": edge_index, "interface_id": identifier, "provider_shard": provider, "consumer_shard": consumer, "status": "PENDING", "criteria": {}, "rationale": "", "certificate_digest": ""}
             self.junctions[f"{int(transformation_id)}:{index}"] = _canonical_json(junction)
         item["junction_count"] = len(pairs)
         item["status"] = "JUNCTIONS_READY" if pairs else "READY_TO_FINALIZE"
@@ -1077,9 +1478,13 @@ class Strata(gl.Contract):
                 final[str(index)] = "NOT_RELEVANT"
         certificate_root = _digest({
             "transformation_id": int(transformation_id),
+            "checkpoint_digest": item["checkpoint_digest"],
             "terms_digest": item["terms_digest"],
             "terminal_snapshot_digest": item["terminal_snapshot_digest"],
             "manifest_root": item["manifest_root"],
+            "scope_root": item["scope_root"],
+            "evidence_coverage_root": item["evidence_coverage_root"],
+            "dependency_graph_root": item["dependency_graph_root"],
             "shard_certificates": shard_digests,
             "junction_certificates": junction_digests,
             "criteria": final,
@@ -1087,7 +1492,7 @@ class Strata(gl.Contract):
         return {"criteria": final, "certificate_root": certificate_root}, ""
 
     @gl.public.write
-    def finalize_transformation(self, transformation_id: u256) -> str:
+    def propose_certificate(self, transformation_id: u256) -> str:
         item = self._load(transformation_id)
         if item["status"] not in {"AUDITING", "JUNCTIONS_READY", "READY_TO_FINALIZE", "INCONCLUSIVE"}:
             raise gl.vm.UserError("finalization_not_available")
@@ -1107,33 +1512,135 @@ class Strata(gl.Contract):
             self._save(transformation_id, item)
             return "inconclusive"
 
-        pool = int(item["pool_wei"])
-        sponsor_allocations = {}
-        implementer_allocation = "0"
+        if result == "COMPLETE" and item.get("coverage_status") != "COMPLETE":
+            item["status"] = "INCONCLUSIVE"
+            item["inconclusive_at"] = item["inconclusive_at"] or _now_unix()
+            item["final_result"] = "INCONCLUSIVE"
+            self._save(transformation_id, item)
+            return "inconclusive"
+        proposed_at = _now_unix()
+        item["status"] = "PROVISIONAL"
+        item["provisional_result"] = result
+        item["provisional_at"] = proposed_at
+        item["challenge_deadline"] = proposed_at + CHALLENGE_WINDOW_SECONDS
+        item["provisional_criteria"] = aggregate["criteria"]
+        item["certificate_root"] = aggregate["certificate_root"]
+        self._save(transformation_id, item)
+        return f"provisional_{result.lower()}"
+
+    @gl.public.write
+    def challenge_certificate(self, transformation_id: u256, criterion_index: int, evidence_path: str, reason: str) -> str:
+        item = self._load(transformation_id)
+        if item["status"] not in {"PROVISIONAL", "CHALLENGED"} or _now_unix() > int(item["challenge_deadline"]):
+            raise gl.vm.UserError("challenge_window_closed")
+        caller = _wallet(gl.message.sender_address)
+        if item["provisional_result"] == "COMPLETE":
+            if caller not in item["sponsor_wallets"]:
+                raise gl.vm.UserError("challenger_not_sponsor")
+        elif caller != item["implementer_wallet"]:
+            raise gl.vm.UserError("challenger_not_implementer")
+        criterion_index, reason, evidence_path = int(criterion_index), reason.strip(), evidence_path.strip()
+        if criterion_index < 0 or criterion_index >= len(item["criteria"]):
+            raise gl.vm.UserError("invalid_challenge_criterion")
+        if not reason or len(reason) > MAX_CHALLENGE_REASON_CHARS:
+            raise gl.vm.UserError("invalid_challenge_reason")
+        evidence_index = -1
+        for index in range(int(item["scope_file_count"])):
+            if json.loads(self.evidence_records[f"{int(transformation_id)}:{index}"])["path"] == evidence_path:
+                evidence_index = index; break
+        if evidence_index < 0:
+            raise gl.vm.UserError("challenge_evidence_not_committed")
+        challenge_count = int(item["challenge_count"])
+        if challenge_count >= MAX_CHALLENGES:
+            raise gl.vm.UserError("challenge_limit_exceeded")
+        duplicate_digest = _digest({"criterion_index": criterion_index, "evidence_path": evidence_path, "reason": reason})
+        for index in range(challenge_count):
+            if json.loads(self.challenges[f"{int(transformation_id)}:{index}"])["duplicate_digest"] == duplicate_digest:
+                raise gl.vm.UserError("duplicate_challenge")
+        challenge = {"index": challenge_count, "challenger": caller, "criterion_index": criterion_index,
+                     "evidence_index": evidence_index, "evidence_path": evidence_path, "reason": reason,
+                     "submitted_at": _now_unix(), "duplicate_digest": duplicate_digest, "status": "PENDING"}
+        challenge["challenge_digest"] = _digest(challenge)
+        self.challenges[f"{int(transformation_id)}:{challenge_count}"] = _canonical_json(challenge)
+        item["challenge_count"] = challenge_count + 1
+        item["status"] = "CHALLENGED"
+        self._save(transformation_id, item)
+        return f"challenge_{challenge_count}"
+
+    @gl.public.write
+    def review_challenge(self, transformation_id: u256) -> str:
+        item = self._load(transformation_id)
+        if item["status"] != "CHALLENGED":
+            raise gl.vm.UserError("challenge_review_not_available")
+        if _now_unix() <= int(item["challenge_deadline"]):
+            raise gl.vm.UserError("challenge_window_active")
+        reviewed = dict(item["provisional_criteria"])
+        review_digests = []
+        for index in range(int(item["challenge_count"])):
+            challenge = json.loads(self.challenges[f"{int(transformation_id)}:{index}"])
+            record = json.loads(self.evidence_records[f"{int(transformation_id)}:{challenge['evidence_index']}"])
+            context = _canonical_json({"repo": item["repo"], "changes": [record]})
+            def fetch_source(ctx=context):
+                return _fetch_shard_source(ctx)
+            source = json.loads(gl.eq_principle.strict_eq(fetch_source))
+            if source.get("status") == "SOURCE_UNAVAILABLE":
+                return "source_unavailable"
+            if source.get("status") != "OK":
+                item["status"] = "INCONCLUSIVE"; item["final_result"] = "INCONCLUSIVE"
+                item["inconclusive_at"] = _now_unix(); self._save(transformation_id, item)
+                return "inconclusive"
+            judge_context = _canonical_json({"objective": item["objective"], "criteria": item["criteria"],
+                "source_json": _canonical_json({"challenge": challenge, "immutable_source": source,
+                                                 "original_criteria": item["provisional_criteria"]})})
+            criterion_count = len(item["criteria"])
+            def leader():
+                result = _normalise_shard_judgment(_analyse_shard(judge_context), criterion_count)
+                if result is None: raise gl.vm.UserError("invalid_challenge_judgment")
+                return result
+            def validator(leaders_res) -> bool:
+                if not isinstance(leaders_res, gl.vm.Return): return False
+                left = _normalise_shard_judgment(leaders_res.calldata, criterion_count); right = leader()
+                return left is not None and left["criteria"] == right["criteria"]
+            verdict = gl.vm.run_nondet(leader, validator)
+            challenged = str(challenge["criterion_index"])
+            reviewed[challenged] = verdict["criteria"][challenged]
+            challenge["status"] = "REVIEWED"; challenge["review_digest"] = _digest({"source_digest": source["source_digest"], "criteria": verdict["criteria"]})
+            review_digests.append(challenge["review_digest"])
+            self.challenges[f"{int(transformation_id)}:{index}"] = _canonical_json(challenge)
+        values = list(reviewed.values())
+        if "AMBIGUOUS" in values or "NOT_RELEVANT" in values:
+            item["status"] = "INCONCLUSIVE"; item["final_result"] = "INCONCLUSIVE"; item["inconclusive_at"] = _now_unix()
+        else:
+            item["provisional_result"] = "FAILED" if "VIOLATED" in values else "COMPLETE"
+            item["status"] = "READY_TO_SETTLE"
+        item["reassessment_criteria"] = reviewed
+        item["reassessment_digest"] = _digest({"certificate_root": item["certificate_root"], "challenges": review_digests, "criteria": reviewed})
+        self._save(transformation_id, item)
+        return item["status"].lower()
+
+    @gl.public.write
+    def settle_certificate(self, transformation_id: u256) -> str:
+        item = self._load(transformation_id)
+        if _now_unix() <= int(item.get("challenge_deadline") or 0):
+            raise gl.vm.UserError("challenge_window_active")
+        if item["status"] == "CHALLENGED":
+            raise gl.vm.UserError("challenge_review_required")
+        if item["status"] not in {"PROVISIONAL", "READY_TO_SETTLE"}:
+            raise gl.vm.UserError("certificate_not_settleable")
+        result, pool = item["provisional_result"], int(item["pool_wei"])
+        sponsor_allocations, implementer_allocation = {}, "0"
         if result == "COMPLETE":
-            self._credit(item["implementer_wallet"], pool)
-            implementer_allocation = str(pool)
+            self._credit(item["implementer_wallet"], pool); implementer_allocation = str(pool)
         else:
             sponsor_allocations = self._refund_sponsors(transformation_id, item, pool)
         finalized_at = _now_unix()
-        settlement = {
-            "result": result,
-            "criteria": aggregate["criteria"],
-            "certificate_root": aggregate["certificate_root"],
-            "pool_wei": str(pool),
-            "implementer_wallet": item["implementer_wallet"],
-            "implementer_allocation": implementer_allocation,
-            "sponsor_allocations": sponsor_allocations,
-            "finalized_at": finalized_at,
-        }
-        item["status"] = result
-        item["final_result"] = result
-        item["certificate_root"] = aggregate["certificate_root"]
-        item["finalized_at"] = finalized_at
-        item["settlement"] = settlement
-        item["settlement_digest"] = _digest({"transformation_id": int(transformation_id), **settlement})
-        item["pool_wei"] = "0"
-        self._save(transformation_id, item)
+        settlement = {"result": result, "criteria": item.get("reassessment_criteria", item["provisional_criteria"]),
+                      "certificate_root": item["certificate_root"], "pool_wei": str(pool),
+                      "implementer_wallet": item["implementer_wallet"], "implementer_allocation": implementer_allocation,
+                      "sponsor_allocations": sponsor_allocations, "finalized_at": finalized_at}
+        item["status"] = result; item["final_result"] = result; item["finalized_at"] = finalized_at
+        item["settlement"] = settlement; item["settlement_digest"] = _digest({"transformation_id": int(transformation_id), **settlement})
+        item["pool_wei"] = "0"; self._save(transformation_id, item)
         return result.lower()
 
     @gl.public.write
@@ -1141,6 +1648,10 @@ class Strata(gl.Contract):
         item = self._load(transformation_id)
         if item["status"] in TERMINAL_STATES:
             raise gl.vm.UserError("transformation_already_terminal")
+        if item["status"] in {"PROVISIONAL", "READY_TO_SETTLE"}:
+            raise gl.vm.UserError("valid_certificate_pending_settlement")
+        if item["status"] == "CHALLENGED" and _now_unix() <= int(item["challenge_deadline"]) + UNRESOLVED_GRACE_SECONDS:
+            raise gl.vm.UserError("challenge_recovery_grace_active")
         if _now_unix() <= int(item["close_at"]) + UNRESOLVED_GRACE_SECONDS:
             raise gl.vm.UserError("unresolved_grace_active")
         pool = int(item["pool_wei"])
@@ -1195,6 +1706,21 @@ class Strata(gl.Contract):
     def get_junction(self, transformation_id: u256, index: int) -> str:
         key = f"{int(transformation_id)}:{int(index)}"
         return self.junctions[key] if key in self.junctions else ""
+
+    @gl.public.view
+    def get_evidence_record(self, transformation_id: u256, index: int) -> str:
+        key = f"{int(transformation_id)}:{int(index)}"
+        return self.evidence_records[key] if key in self.evidence_records else ""
+
+    @gl.public.view
+    def get_dependency_edge(self, transformation_id: u256, index: int) -> str:
+        key = f"{int(transformation_id)}:{int(index)}"
+        return self.dependency_edges[key] if key in self.dependency_edges else ""
+
+    @gl.public.view
+    def get_challenge(self, transformation_id: u256, index: int) -> str:
+        key = f"{int(transformation_id)}:{int(index)}"
+        return self.challenges[key] if key in self.challenges else ""
 
     @gl.public.view
     def get_sponsor_total(self, transformation_id: u256, wallet: str) -> str:
